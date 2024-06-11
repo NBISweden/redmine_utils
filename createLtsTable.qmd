@@ -1,0 +1,91 @@
+---
+title: "Table of Peer Review (WABI) projects"
+author: "NBIS Support Manager group"
+date: today
+always_allow_html: true
+format: 
+  confluence-html:
+    page-layout: full
+params:
+  config_file: config.yaml #.dist
+---
+
+# Introduction
+This is a table of all currently open NBIS Peer review (WABI) projects with selected fields given. It will be updated monthly (currently done by manually running a script -- we will try to automatise the update). 
+
+- It is possible to sort then table on any column -- click on the small arrow next to the column name to sort alphanumerically or reversly alphanumerically. 
+- *Unfortunately, I did not get filtering on column values to work on confluence. You have to sort and scroll to get your projects :(*
+
+NB! You can not do any edits or updates directly in this table as they would be over-written next time the table is updated. Do all edits directly in Redmine instead!
+
+If you have any comments or suggestion (e.g., add an additional field), please post them in the `#support_managers_neworg` Slack channel.
+
+
+# Tasks for Support managers:
+
+1. Use sorting and scrolling to find projects that you are Coordinator for. Check and update the project:
+   i. If it should be closed, log into Redmine and close it manually
+   ii. If it has the wrong status, please update (typically from `New` to `In Progress`)
+   ii. If there are fields that need to be filled or updated, log into Redmine and add the field values manually
+2.  Use sorting and scrolling to show projects that has "*Missing*" in the Coordinator field. Please, check and update those projects that you have information for:
+    i. If you are the coordinator of the project, go to Redmine and update relevant field values (see above).
+    ii. If you know who is the coordinator of the project, either
+        a. Remind the person, or
+        b. Go to Redmine and add the person as Coordinator manually
+
+```{python, echo=FALSE, eval=TRUE}
+
+from Redmine_apis import *
+import pandas as pd
+import yaml
+
+# Load Redmine credentials from YAML config file
+with open(r.params['config_file'], 'r') as config_file:
+    config = yaml.safe_load(config_file)
+
+# Open Redamine API
+redmine = Redmine_server_api(config)
+
+# Requested projects from Redmine
+project_name = 'Long-term Support'
+
+# Get project id
+project_id = redmine.find_project_id_from_name(project_name)
+
+# Set up yser db indexed by user id
+userIdToName = redmine.create_user_id_to_name(project_id)
+
+# Get all issues in the project
+issues = redmine.get_all_project_issues(project_id)
+
+# Requested statuses from Redmine
+statuses = [ 'New', 'Pending', 'In Progress' ] 
+
+# Requested fields from Redmine -- NB! NBIS custom fields are given separately, but processed in the same way
+fields = [ 'id', 'status', 'project', 'assigned_to' ] 
+custom_fields = [ 'Team', 'WABI ID', 'Coordinator']
+
+# Create and fill data frame with requested data
+dat = {}
+for f in fields + custom_fields:
+  dat[f] = []
+for i in [ l for l in issues if get_field(l, 'status') in statuses ]:
+  for f in fields + custom_fields:
+    val = get_field(i, f)
+    if f == 'Coordinator':
+      val = userIdToName[val]
+    elif f == 'id':
+      val = f"[{val}](https://projects.nbis.se/issues/{val})"
+    dat[f].append(val)
+df = pd.DataFrame(dat)
+```
+
+```{r, echo=FALSE, include=TRUE, warning=FALSE, error=FALSE}
+library(reticulate)
+library(knitr)
+
+# Set up and display table
+dat = data.frame(py$df, stringsAsFactors=TRUE)
+dat = dat[order(dat$Coordinator),]
+kable(dat, row.names=FALSE)
+```
