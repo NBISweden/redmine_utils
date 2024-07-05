@@ -51,8 +51,6 @@ def main():
 
     # Iterate over the issues
     for issue in issues:
-        if issue['id'] != 7569:
-          continue
         assignee = userNameToId[get_field(issue, fromField)]
         if assignee == None:
           print(f"issue #{issue['id']}: no assignee assigned")
