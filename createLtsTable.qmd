@@ -52,7 +52,7 @@ project_name = 'Long-term Support'
 # Get project id
 project_id = redmine.find_project_id_from_name(project_name)
 
-# Set up yser db indexed by user id
+# Set up user db indexed by user id
 userIdToName = redmine.create_user_id_to_name(project_id)
 
 # Get all issues in the project
