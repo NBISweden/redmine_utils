@@ -1,6 +1,7 @@
 import requests
 import pdb
 from pprint import pprint
+import sys
 
 # "freestanding" util functions
 #------------------------------
@@ -26,6 +27,7 @@ def get_field(issue, field_name):
     return field_value
   else:
     return get_custom_field(issue, field_name)
+  
 
 def get_custom_field(issue, field_name):
   """
@@ -47,6 +49,26 @@ def get_custom_field(issue, field_name):
   return field_value
 
 
+def get_custom_field_id(issue, field_name):
+  """
+  Retrieve the id of a custom field from an issue.
+      Args:
+        issue: A dict with formatted issue info to be searched
+        field_name: a string with the name of the requested field 
+
+      Returns: 
+        field id     if field exists
+        None        otherwise
+  """
+  # get field value
+  field_id = [ field['id'] for field in issue['custom_fields'] if field['name']==field_name ]
+  if len(field_id) > 0:
+    field_id = field_id[0]
+  else:
+    field_id = None
+  return field_id
+  
+
 # Main class for interacting with the Redmine REST API
 #-------------------------------------------------------
 class Redmine_server_api:
@@ -67,6 +89,7 @@ class Redmine_server_api:
       #                     "Accept": "application/json",
       #                     "Content-Type": "application/json",
                         }
+    
 
     def get_project_memberships(self, project_id):
       """
@@ -120,6 +143,32 @@ class Redmine_server_api:
       else:
         return []
       
+    def create_user_name_to_id(self, project_id):
+      """
+      Create a dict translating user name to user id for all members of a project_id 
+      
+      Args:
+           project_id (int): The ID of the project.
+  
+      Returns:
+          dict: A dictionary mapping id to name for all users in the project.
+  
+      """
+      memberships = self.get_project_memberships(project_id)
+      if memberships:
+        users = {}
+        for membership in memberships:
+          if "user" in membership:
+            name = membership["user"]['name']
+            if "id" in membership:
+                id = membership["user"]["id"]
+                users[name] = id
+        users[''] = None   #Fall back 1  
+        users[None] = None #Fall back 2
+        return users
+      else:
+        return []
+
     def get_all_projects(self):
       """
       Retrieve all projects from Redmine API by paginating through the results.
@@ -190,4 +239,82 @@ class Redmine_server_api:
   
       return issues
 
+
+    def update_issue_standard_field(self, issue, field_name, value, id):
+        """
+        WORK IN PROGRESS -- it is unclear how to determine which fields take a string and which takes an id
+        also the field "Assignee" is not called  as "assigned_to" as in get calls, but as "assigned_to_id"
+        -- A jungle!
+        
+        Update the value of the given field in a given issue in the current
+        Redmine instance. NB! Overwrites current value.
+        """
+        raise Exception("Not working currently -- WORK IN PROGRESS")
+      
+        # Create the payload for updating the issue status, and suppress email notifications and surveys
+        payload = {
+            "suppress_mail" : "1",
+            "issue": {
+              field_name: id, #{ 
+                #"name": value, 
+               # "id": id
+              #},
+            }
+        }
+        
+        return self.__update_issue(issue, payload)
+    
+
+
+    def update_issue_custom_field(self, issue, field_name, value):
+        """
+        Update the value of the given field in a given issue in the current
+        Redmine instance. NB! Overwrites current value.
+        """
+        field_id = get_custom_field_id(issue, field_name)
+        # Create the payload for updating the issue status, and suppress email notifications and surveys
+        payload = {
+            "suppress_mail" : "1",
+            "issue": {
+                "custom_fields": [
+                                    {
+                                    "value": value, 
+                                    "id": field_id
+                                    }
+                                ]
+            },
+        }
+        
+        
+        return self.__update_issue(issue, payload)
+    
+    
+    def __update_issue(self, issue, payload):
+        """
+        Helper function for updating fields in an issue
+        should not be called directly
+        """
+
+        # check if important issue fields are None (will crash redmine if they are)
+        fields = ['description']
+        for field in fields:
+            if issue[field] is None:
+                payload['issue'][field] = ''
+        pprint(payload)
+        # check if custom fields are None (will crash redmine if they are)
+        for field in issue['custom_fields']:
+          if field['value'] is None:
+            payload['issue']['custom_fields'].append({'id': field['id'], 'value': ''})
+          # check if custom fields have leading or trailing white spaces (email with white spaces will crash redmine)
+          elif isinstance(field['value'], list) == False and field['value'] != field['value'].strip():
+            pprint(f"{field['value']} != {field['value'].strip()}:")
+            payload['issue']['custom_fields'].append({'id': field['id'], 'value': field['value'].strip()})
+  
+        # set url to update issue
+        issue_url = f"{self.baseurl}/issues/{issue['id']}.json"
+    
+        # Update the issue
+        response = requests.put(issue_url, headers=self.headers, json=payload)
+        response.raise_for_status()
+        return response
 
