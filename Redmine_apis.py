@@ -240,29 +240,29 @@ class Redmine_server_api:
       return issues
 
 
-    def update_issue_standard_field(self, issue, field_name, value, id):
-        """
-        WORK IN PROGRESS -- it is unclear how to determine which fields take a string and which takes an id
-        also the field "Assignee" is not called  as "assigned_to" as in get calls, but as "assigned_to_id"
-        -- A jungle!
-        
-        Update the value of the given field in a given issue in the current
-        Redmine instance. NB! Overwrites current value.
-        """
-        raise Exception("Not working currently -- WORK IN PROGRESS")
-      
-        # Create the payload for updating the issue status, and suppress email notifications and surveys
-        payload = {
-            "suppress_mail" : "1",
-            "issue": {
-              field_name: id, #{ 
-                #"name": value, 
-               # "id": id
-              #},
-            }
-        }
-        
-        return self.__update_issue(issue, payload)
+    # def update_issue_standard_field(self, issue, field_name, value, id):
+    #     """
+    #     WORK IN PROGRESS -- it is unclear how to determine which fields take a string and which takes an id
+    #     also the field "Assignee" is not called  as "assigned_to" as in get calls, but as "assigned_to_id"
+    #     -- A jungle!
+    #     
+    #     Update the value of the given field in a given issue in the current
+    #     Redmine instance. NB! Overwrites current value.
+    #     """
+    #     raise Exception("Not working currently -- WORK IN PROGRESS")
+    #   
+    #     # Create the payload for updating the issue status, and suppress email notifications and surveys
+    #     payload = {
+    #         "suppress_mail" : "1",
+    #         "issue": {
+    #           field_name: id, #{ 
+    #             #"name": value, 
+    #            # "id": id
+    #           #},
+    #         }
+    #     }
+    #     
+    #     return self.__update_issue(issue, payload)
     
 
 
