@@ -1,0 +1,211 @@
+---
+title: "User Time Log report"
+author: "NBIS Support Manager group"
+date: today
+always_allow_html: true
+format: 
+  confluence-html:
+    page-layout: full
+    css: two_columns.css
+params:
+  config_file: config.yaml #.dist
+  users: ["Eva Freyhult", "Louella Vasquez", "Marcin Kierczak", "Markus Mayrhofer", "Miguel Angel Redondo", "Paul Pyl", "Sebastian DiLorenzo", "Yuan Li" ]
+  start_date: 2023-09-01
+  end_date: 2024-08-31
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r correspond}
+
+corr = data.frame(
+  redmine=I(list(
+    "Absence (Vacation/VAB/Other)",                         # Absence
+    "Administration",                                       # Administration
+    "Internal NBIS",                                        # Internal NBIS
+    "NBIS Management",                                      # Coordination
+    c("Development", "Internal consultation", "Outreach"),  # Community
+    "Professional Development",                             # Professional development
+    c("Consultation", "Support"),                           # Support
+    "Training"                                              # Training
+  )), 
+  row.names=c(
+    "Absence",
+    "Administration",
+    "Internal NBIS",
+    "Coordination",
+    "Community", 
+    "Professional Development",
+    "Support",
+    "Training"
+  )
+)
+
+presence = c("Administration", "Internal NBIS", "Coordination", "Community", "Professional Development", "Support", "Training")
+output = c("Consultation", "Coordination","Community", "Support", "Training")
+
+redmine=c(
+  "Absence (Vacation/VAB/Other)",
+  "Administration",
+  "Consultation",
+  "Development",
+  "Internal consultation",
+  "Internal NBIS",
+  "Outreach",
+  "Professional Development",
+  "Support",
+  "Training",
+  "Total time",
+  "NBIS Management"
+)
+
+approxJobYear = 1983 #hours
+approxWorkYear = 1700 #hours
+
+fracYear = as.numeric(as.Date(params$end_date) - as.Date(params$start_date))/365
+approxJobHours = approxJobYear * fracYear
+```
+
+## Introduction
+
+The time logging categories from RedMine are grouped into useful categories as follows:
+
+```{r corrtabke, echo=FALSE}
+corr2 = corr
+corr2$redmine = lapply(corr2$redmine, paste, sep=";")
+kable(corr2)
+
+```
+
+Three different pie-charts/table approaches are shown.
+
+1. **Presence/absence** Meant only to give an overview to visualize reduced work time etc. -- not to be used to stress experts.
+Notice that _absence_ include several subcategories, vacation, VAB, Sick leave, Parental leave, etc, but that reporting these are optional in LTS.
+The PercentExp denotes percent of approximate expected yearly work time, here this is set to `r approxJobYear`. 
+
+2. **Distribution of presence time on different categories** (see table).
+
+3. **Distribution of presence time on _output_** Output = (`r paste(output, sep=",")`).
+
+(kudos to Henrik)
+
+<div class=pgbr></div>
+
+```{python, echo=FALSE, eval=TRUE}
+
+# Get the records from Redmine
+from Redmine_apis import *
+import pandas as pd
+import yaml
+import datetime
+
+
+# Load Redmine credentials from YAML config file
+with open(r.params['config_file'], 'r') as config_file:
+    config = yaml.safe_load(config_file)
+
+# Open Redamine API
+redmine = Redmine_server_api(config)
+
+# Use dummy projects from Redmine to # Set up user db indexed by user id
+project_name = 'Long-term Support'
+project_id = redmine.find_project_id_from_name(project_name)
+userNameToId = redmine.create_user_name_to_id(project_id)
+
+allTimeLog = {}
+allTimeLogIssue = {}
+for user in r.params["users"]: #["Eva Freyhult", "Louella Vasquez", "Marcin Kierczak", "Markus Mayrhofer", "Paul Pyl", "Sebastian DiLorenzo", "Yuan Li" ]:
+  user_id = userNameToId[user]
+  userTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_activity_and_month(user_id, r.params["start_date"], r.params["end_date"]), orient='index')
+  #userTimeLog = pd.DataFrame.from_dict(userTimeLog, orient='index')
+  ordCols = sorted(userTimeLog.columns)
+  userTimeLog["Activity"] = userTimeLog.index
+  allTimeLog[user] =  userTimeLog[["Activity"]+ordCols]
+  
+  userIssueTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_issue(user_id, r.params["start_date"], r.params["end_date"]), orient='index')
+  #userTimeLog = pd.DataFrame.from_dict(userTimeLog, orient='index')
+  #userIssueTimeLog = userIssueTimeLog.sort_values(by=['Total time', ascending = False)
+  allTimeLogIssue[user] =  userIssueTimeLog.sort_values(by=['Project', 'Tracker', 'Total time'], ascending = False)
+  
+```
+
+```{r redmine, results='asis'}
+library(reticulate)
+library(knitr)
+library(kableExtra)
+
+for(key in params$users){ #c("Eva Freyhult", "Louella Vasquez", "Marcin Kierczak", "Markus Mayrhofer", "Paul Pyl", "Sebastian DiLorenzo", "Yuan Li" )){
+  cat("## Summary of time logging for the period 230901 -- 240331\n")
+  cat(paste("##", key, "\n"))
+  raw = data.frame(py$allTimeLog[key], stringsAsFactors=TRUE, check.names = FALSE)
+  names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
+  raw[is.na(raw)] <- 0
+  ret = data.frame("Activity"=character(), "Time"= double())
+  for(i in row.names(corr)){
+    ret = rbind(ret, data.frame("Activity"= i, "Time" = sum(raw[raw$Activity %in% unlist(corr[i,"redmine"]), "Total time"])))
+  }
+  
+  # Presence/absence
+  cat('<div class="twoC">')
+  curr = ret[ret$Activity == "Absence", ]
+  curr = rbind(curr, data.frame(Activity = "Presence", "Time" = sum(ret[ret$Activity %in% presence, "Time"])))
+  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
+  curr$PercentExp = round(curr$Time/approxJobHours * 100, 2)
+  pie(curr$Time, labels=curr$Activity, main=paste("Absence/presence pie chart for", key))
+  curr = rbind(curr, data.frame(Activity= "Total", Time = sum(curr$Time), Percent = sum(curr$Percent), PercentExp = sum(curr$PercentExp)))
+  print(kable(curr,  row.names = FALSE, "html") %>% 
+          kable_styling("condensed", full_width=F))
+  cat('</div>')
+  cat('<div class="clearer"></div>')
+  
+  # Presence
+  cat('<div class="twoC">')
+  curr = ret[ret$Activity %in% presence, ]
+  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
+  pie(curr$Time, labels=curr$Activity, main=paste("Presence Time pie chart for", key))
+  curr = rbind(curr, data.frame(Activity= "Total", Time = sum(curr$Time), Percent = sum(curr$Percent)))
+  print(kable(curr, row.names = FALSE, "html") %>% 
+          kable_styling("condensed", full_width=F))
+  cat('</div>')
+  cat('<div class="clearer"></div>')
+
+  # output
+  cat('<div class="twoC">')
+  curr = ret[!ret$Activity %in% c(output, "Absence"),]
+  curr=rbind(curr, data.frame(Activity="Output", Time = sum(ret[ret$Activity %in% output, "Time"])))
+  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
+  pie(curr$Time, labels=curr$Activity, main=paste("Output pie chart for", key))
+  curr = rbind(curr, data.frame(Activity= "Total", Time = sum(curr$Time), Percent = sum(curr$Percent)))
+  print(kable(curr, row.names = FALSE, "html") %>% 
+          kable_styling("condensed", full_width=F))
+  cat('</div>')
+  cat('<div class="clearer"></div>')    
+
+  # Full Time Log distributed over months  
+  cat(paste("Full Time Log distributed over activities and months for", key))
+  print(kable(raw, row.names = FALSE, "html") %>% 
+          kable_styling("condensed", font_size = 10, full_width=F))
+  cat('</div>')
+  cat('<div class="clearer"></div>')    
+
+  # Full Time Log distributed over issues
+  raw = data.frame(py$allTimeLogIssue[key], stringsAsFactors=TRUE, check.names = FALSE)
+  names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
+  cat(paste("Full Time Log distributed over issues for", key))
+  print(kable(raw, row.names = TRUE, "html") %>% 
+          kable_styling("condensed", font_size = 10, full_width=F))
+
+  cat('<div class="pgbr"></div>')
+  cat('<div class="clearer"></div>')    
+  # Warn about activities not in the current correspondence table
+  for(i in unique(raw$Activity)){
+    if(!i %in% redmine){
+      print(paste0("New activity, ", i, ", found; please include in variable 'corr'\n"))
+    }
+  }
+
+}
+```

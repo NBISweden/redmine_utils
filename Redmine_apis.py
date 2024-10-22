@@ -2,6 +2,7 @@ import requests
 import pdb
 from pprint import pprint
 import sys
+import datetime
 
 # "freestanding" util functions
 #------------------------------
@@ -288,6 +289,23 @@ class Redmine_server_api:
         
         return self.__update_issue(issue, payload)
     
+    def fetch_issue(self, issue_id):
+      """
+      Fetch and cache issue details to minimize API requests.
+      """
+      issue_cache = {}
+      if issue_id in issue_cache:
+          return issue_cache[issue_id]
+  
+      response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers)
+  
+      if response.status_code == 200:
+          issue_data = response.json()['issue']
+          issue_cache[issue_id] = issue_data
+          return issue_data
+      else:
+        raise Exception(f"Failed to fetch issue data: {response.status_code}")
+
     
     def __update_issue(self, issue, payload):
         """
@@ -318,3 +336,84 @@ class Redmine_server_api:
         response.raise_for_status()
         return response
 
+
+    def fetch_time_entries(self,  user_id, start_date, end_date):
+        """
+        Helper function for producing a Spent time report
+        should not be called directly
+        arguments:
+          start_date and end_date: in isoformat,e.g., 2024-09-11
+          user_id
+        """
+        # start_date = datetime.date(year, 1, 1).isoformat()
+        # end_date = datetime.date(year, 12, 31).isoformat()
+        limit = 100  # Adjust based on your needs
+        offset = 0
+        time_entries = []
+    
+        times=0
+        page = 1
+        while True:
+            params = {
+                'user_id': user_id,
+                'from': start_date,
+                'to': end_date,
+                'limit': limit,
+                'page': page,
+                'tracker': True,
+            }
+            response = requests.get(f"{self.baseurl}/time_entries.json", headers=self.headers, params=params)
+#            response = requests.get(f'{base_url}/time_entries.json', headers=headers, params=params)
+            if response.status_code != 200:
+                print("Failed to fetch data:", response.status_code)
+                break
+    
+            data = response.json()
+            time_entries.extend(data.get('time_entries', []))
+
+            if len(data.get('time_entries', [])) < limit:
+                break  # Exit loop if last page
+    
+            page += 1
+            times += 1
+            
+#            offset += limit
+        return time_entries
+    
+    def report_time_entries_by_activity_and_month(self, user_id, start_date, end_data):
+      
+        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        activity_report = {}
+        for entry in time_entries:
+            activity = entry['activity']['name']
+            spent_date = datetime.datetime.strptime(entry['spent_on'], '%Y-%m-%d').date()
+            month = f"{spent_date.year}-{spent_date.month}"
+            hours = entry['hours']
+            if activity not in activity_report:
+                activity_report[activity] = { 'Total time' : 0 }  # Initialize if not exist
+            
+            if month not in activity_report[activity]:
+                activity_report[activity][month] = 0  # Initialize month if not exist
+            
+            activity_report[activity][month] += hours
+            activity_report[activity]['Total time'] += hours
+            
+        return activity_report
+    
+    def report_time_entries_by_issue(self, user_id, start_date, end_data):
+      
+        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        issue_report = {}
+        for entry in time_entries:
+            issue_id = entry['issue']['id']
+            project = entry['project']['name']
+            hours = entry['hours']
+            if issue_id not in issue_report:
+                issue = self.fetch_issue(issue_id)
+                tracker = get_field(issue, 'tracker')
+                name = get_field(issue, 'subject')
+                issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Total time' : 0 }  # Initialize if not exist
+            issue_report[issue_id]['Total time'] += hours
+
+        return issue_report
+    
