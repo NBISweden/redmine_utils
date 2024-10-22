@@ -1,4 +1,4 @@
 *.yml
 *.yaml
 .*.sw*
-.Rproj.user
+.Rproj
