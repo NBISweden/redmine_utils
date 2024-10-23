@@ -71,21 +71,29 @@ def main():
           continue
         # Always work with lists
         if args.separator !=  None:
-          values = values.split(args.separator)
+         if args.separator != None:
+            if args.separator == "\\n":
+              values = values.splitlines()
+            else:
+              values = values.split(args.separator)
         else:
           values = [ values ]
         if args.userids:
            values = [ userNameToId[val] for val in values ]
-
         target = get_field(issue, args.tofield)
         # Always work with lists
         if target == None or target == '':
           target = []
         elif type (target) != list:
+          print(f"_{args.separator}_")
           if args.separator != None:
-            target = target.split(args.separator)
+            if args.separator == "\\n":
+              target = target.splitlines()
+            else:
+              target = target.split(args.separator)
           else:
             target = [ target ]
+        print(f"q {target}")
         valsToCopy = []
         for val in values:
           val = str(val)
@@ -97,14 +105,21 @@ def main():
         if len(valsToCopy) == 0:
           continue
         target = valsToCopy + target
+        print(target)
         if args.dryrun:
           pprint(f"Dry run: Would have updated issue #{issue['id']}: "+
           f"values {[ userIdToName[a] if args.userids else a for a in valsToCopy ]} "+
           f"copied to {args.tofield} => {[ userIdToName[a] if args.userids else a for a in target ]}")
+          if args.separator:
+            target = f"\r\n".join(target) if args.separator == "\\n" else f"{args.separator}".join(target) 
+          print(target)  
           continue
         pprint(f"Updated issue #{issue['id']}: "+
         f"values {[ userIdToName[a] if args.userids else a for a in valsToCopy ]} copied to {args.tofield} "+
         f"=> {[ userIdToName[a] if args.userids else a for a in target ]}")
+        if args.separator:
+          target = f"\r\n".join(target) if args.separator == "\\n" else f"{args.separator}".join(target) 
+        print(target)
         redmine.update_issue_custom_field(issue, str(args.tofield), target)
     if len(missingMain) !=0:
         print("\nThe following issues has no main assignee\n{a}".format(a='\n'.join(missingMain)))
