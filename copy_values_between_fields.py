@@ -57,13 +57,11 @@ def main():
 #    toField = "All assignees"
 
     missingMain = []
-    #pdb.set_trace()
     # Iterate over the issues
-    pprint(f"Doing updates for project {project_name}") 
+    print(f"Doing updates for project {project_name}") 
     for issue in issues:
         if args.onlyissue and str(issue['id']) != args.onlyissue:
           continue
-        
         values = get_field(issue, args.fromfield)
         if values == None or values == '':
           missingMain.append(str(issue['id']))
@@ -71,21 +69,20 @@ def main():
           continue
         # Always work with lists
         if args.separator !=  None:
-         if args.separator != None:
-            if args.separator == "\\n":
-              values = values.splitlines()
-            else:
-              values = values.split(args.separator)
+          if args.separator == "\\n":
+            values = values.splitlines()
+          else:
+            values = values.split(args.separator)
         else:
           values = [ values ]
         if args.userids:
            values = [ userNameToId[val] for val in values ]
+        values = set([ str(a) for a in values ])
         target = get_field(issue, args.tofield)
         # Always work with lists
         if target == None or target == '':
           target = []
         elif type (target) != list:
-          print(f"_{args.separator}_")
           if args.separator != None:
             if args.separator == "\\n":
               target = target.splitlines()
@@ -93,33 +90,25 @@ def main():
               target = target.split(args.separator)
           else:
             target = [ target ]
-        print(f"q {target}")
-        valsToCopy = []
-        for val in values:
-          val = str(val)
-          if val in target: 
-              pprint(f"issue #{issue['id']}: "+
-              f"{args.fromfield} value {userIdToName[val] if args.userids else val} already in {args.tofield} field: {[ userIdToName[a] for a in target ]}")
-          else: 
-            valsToCopy.append(val)
-        if len(valsToCopy) == 0:
+        target = set([ str(a) for a in target ])
+        if len(values.difference(target)) == 0:
+          if args.longoutput:
+            print(f"issue #{issue['id']}: "+
+                  f"All {args.fromfield} value(s) {[ userIdToName[a] if args.userids else a for a in target.intersection(values) ]} "+
+                  f"already in {args.tofield} field: {[ userIdToName[a] if args.userids else a for a in target ]}")
           continue
-        target = valsToCopy + target
-        print(target)
+        target = target.union(values)
         if args.dryrun:
-          pprint(f"Dry run: Would have updated issue #{issue['id']}: "+
-          f"values {[ userIdToName[a] if args.userids else a for a in valsToCopy ]} "+
+          print(f"Dry run: Would have updated issue #{issue['id']}: "+
+          f"{args.fromfield} values {[ userIdToName[a] if args.userids else a for a in target.intersection(values) ]} "+
           f"copied to {args.tofield} => {[ userIdToName[a] if args.userids else a for a in target ]}")
-          if args.separator:
-            target = f"\r\n".join(target) if args.separator == "\\n" else f"{args.separator}".join(target) 
-          print(target)  
           continue
-        pprint(f"Updated issue #{issue['id']}: "+
-        f"values {[ userIdToName[a] if args.userids else a for a in valsToCopy ]} copied to {args.tofield} "+
+        print(f"Updated issue #{issue['id']}: "+
+        f"values {[ userIdToName[a] if args.userids else a for a in target.intersection(values) ]} copied to {args.tofield} "+
         f"=> {[ userIdToName[a] if args.userids else a for a in target ]}")
+        target = list(target)
         if args.separator:
           target = f"\r\n".join(target) if args.separator == "\\n" else f"{args.separator}".join(target) 
-        print(target)
         redmine.update_issue_custom_field(issue, str(args.tofield), target)
     if len(missingMain) !=0:
         print("\nThe following issues has no main assignee\n{a}".format(a='\n'.join(missingMain)))
