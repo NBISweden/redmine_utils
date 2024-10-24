@@ -318,7 +318,7 @@ class Redmine_server_api:
         for field in fields:
             if issue[field] is None:
                 payload['issue'][field] = ''
-        pprint(payload)
+        #pprint(payload)
         # check if custom fields are None (will crash redmine if they are)
         for field in issue['custom_fields']:
           if field['value'] is None:
