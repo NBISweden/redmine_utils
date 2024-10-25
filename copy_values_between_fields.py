@@ -9,10 +9,16 @@ import datetime
 
 def main():
     """
-    Main function to copy values from one Redmine field and prepend to another field.
+    Main function to copy unique values from one Redmine field and prepend to another field. 
+    NB! Both fields should have a content representing an (unordered)  list of items -- NOT free text as content will be reorganized!
+    NB! Duplicate values will be reduced to a single value in the target field.
+    Copying has been verified to work for Redmine lists, text and long-text fields; different fields need not have same type.
     """
     # Parse command line arguments
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Main function to copy unique values from one Redmine field and prepend to another field. " 
+    "NB! Both fields should have a content representing an (unordered)  list of items -- NOT free text as content will be reorganized! "
+    "NB! Duplicate values will be reduced to a single value in the target field. "
+    "Copying has been verified to work for Redmine lists, text and long-text fields; different fields need not have same type.")
     parser.add_argument('-c', '--config', help='Path to the YAML config file', required=True)
     parser.add_argument('-p', '--project', help='Name of the project to update, including all sub-projects', required=True)
     parser.add_argument('-d', '--dryrun', action='store_true', help='Perform a dry run without actually updating any issues')
@@ -22,7 +28,6 @@ def main():
     parser.add_argument('-t', '--tofield', help='copy values to this field', default='All assignees')
     parser.add_argument('-u', '--userids', action='store_true', help='Target values are user IDs', default=False)
     parser.add_argument('-s', '--separator', help='use separator to create a list from string field value', default=None)
-    
     
     args = parser.parse_args()
 
