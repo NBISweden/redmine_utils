@@ -2,3 +2,4 @@
 *.yaml
 .*.sw*
 .Rproj
+.Rproj.user
