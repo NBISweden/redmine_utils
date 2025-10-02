@@ -211,12 +211,13 @@ class Redmine_server_api:
     
     
     
-    def get_all_project_issues(self, project_id):
+    def get_all_project_issues(self, project_id, status_id = 'open'):
       """
       Retrieve all issues in a project from the Redmine API by paginating through the results.
   
       Args:
           project_id (int): The ID of the project.
+          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', 'all'? -- check this!)
   
       Returns:
           list: A list if dictionaries with issue info for all issues in the project.
@@ -226,8 +227,9 @@ class Redmine_server_api:
       page = 1
       while True:
           # Retrieve issues for the current page
-          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "page": page})
+          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "status_id": status_id, "page": page }) 
           response.raise_for_status()
+
           data = response.json()
           issues.extend(data['issues'])
 
@@ -286,7 +288,6 @@ class Redmine_server_api:
             },
         }
         
-        
         return self.__update_issue(issue, payload)
     
     def fetch_issue(self, issue_id):
@@ -327,7 +328,6 @@ class Redmine_server_api:
           elif isinstance(field['value'], list) == False and field['value'] != field['value'].strip():
             pprint(f"{field['value']} != {field['value'].strip()}:")
             payload['issue']['custom_fields'].append({'id': field['id'], 'value': field['value'].strip()})
-  
         # set url to update issue
         issue_url = f"{self.baseurl}/issues/{issue['id']}.json"
     
