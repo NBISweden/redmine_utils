@@ -35,13 +35,6 @@ If you have any comments or suggestion (e.g., add an additional field), please p
         a. Remind the person, or
         b. Go to Redmine and add the person as Coordinator manually
 
-```{python, echo=FALSE, eval=FALSE}
-import platform
-import sys
-f=open("mystderrcommand.txt",'w')
-f.write(platform.python_version())
-print(platform.python_version())
-```
 ```{python, echo=FALSE, eval=TRUE}
 from Redmine_apis import *
 import pandas as pd
