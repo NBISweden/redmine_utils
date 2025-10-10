@@ -90,6 +90,7 @@ class Redmine_server_api:
       #                     "Accept": "application/json",
       #                     "Content-Type": "application/json",
                         }
+      self.issue_cache = {}
     
 
     def get_project_memberships(self, project_id):
@@ -211,13 +212,14 @@ class Redmine_server_api:
     
     
     
-    def get_all_project_issues(self, project_id, status_id = 'open'):
+    def get_all_project_issues(self, project_id, status_id = 'open', extra_params = {}):
       """
       Retrieve all issues in a project from the Redmine API by paginating through the results.
   
       Args:
           project_id (int): The ID of the project.
-          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', 'all'? -- check this!)
+          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', '*')
+          extra_params (dict): Additional query parameters to include in the request.
   
       Returns:
           list: A list if dictionaries with issue info for all issues in the project.
@@ -227,7 +229,7 @@ class Redmine_server_api:
       page = 1
       while True:
           # Retrieve issues for the current page
-          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "status_id": status_id, "page": page }) 
+          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "status_id": status_id, "page": page } | extra_params) 
           response.raise_for_status()
 
           data = response.json()
@@ -240,6 +242,9 @@ class Redmine_server_api:
           # Move to the next page
           page += 1
   
+      # add issues to the cache
+      self.issue_cache.update({ issue['id'] : issue for issue in issues })
+
       return issues
 
 
@@ -290,19 +295,19 @@ class Redmine_server_api:
         
         return self.__update_issue(issue, payload)
     
-    def fetch_issue(self, issue_id):
+    def fetch_issue(self, issue_id, use_cache=True):
       """
       Fetch and cache issue details to minimize API requests.
       """
-      issue_cache = {}
-      if issue_id in issue_cache:
+
+      if use_cache and issue_id in self.issue_cache:
           return issue_cache[issue_id]
   
       response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers)
   
       if response.status_code == 200:
           issue_data = response.json()['issue']
-          issue_cache[issue_id] = issue_data
+          self.issue_cache[issue_id] = issue_data
           return issue_data
       else:
         raise Exception(f"Failed to fetch issue data: {response.status_code}")
@@ -337,7 +342,7 @@ class Redmine_server_api:
         return response
 
 
-    def fetch_time_entries(self,  user_id, start_date, end_date):
+    def fetch_time_entries_by_user_id(self, user_id, start_date, end_date):
         """
         Helper function for producing a Spent time report
         should not be called directly
@@ -348,10 +353,8 @@ class Redmine_server_api:
         # start_date = datetime.date(year, 1, 1).isoformat()
         # end_date = datetime.date(year, 12, 31).isoformat()
         limit = 100  # Adjust based on your needs
-        offset = 0
         time_entries = []
     
-        times=0
         page = 1
         while True:
             params = {
@@ -375,14 +378,53 @@ class Redmine_server_api:
                 break  # Exit loop if last page
     
             page += 1
-            times += 1
             
-#            offset += limit
         return time_entries
+
+
     
+    def fetch_time_entries_by_project_id(self, project_id, start_date, end_date):
+        """
+        arguments:
+          start_date and end_date: in isoformat,e.g., 2024-09-11
+          project_id (int)
+        """
+        # start_date = datetime.date(year, 1, 1).isoformat()
+        # end_date = datetime.date(year, 12, 31).isoformat()
+        limit = 100  # Adjust based on your needs
+        time_entries = []
+    
+        page = 1
+        while True:
+            params = {
+                'project_id': project_id,
+                'from': start_date,
+                'to': end_date,
+                'limit': limit,
+                'page': page,
+                'tracker': True,
+            }
+            response = requests.get(f"{self.baseurl}/time_entries.json", headers=self.headers, params=params)
+#            response = requests.get(f'{base_url}/time_entries.json', headers=headers, params=params)
+            if response.status_code != 200:
+                print("Failed to fetch data:", response.status_code)
+                break
+    
+            data = response.json()
+            time_entries.extend(data.get('time_entries', []))
+
+            if len(data.get('time_entries', [])) < limit:
+                break  # Exit loop if last page
+    
+            page += 1
+            
+        return time_entries
+
+
+
     def report_time_entries_by_activity_and_month(self, user_id, start_date, end_data):
       
-        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         activity_report = {}
         for entry in time_entries:
             activity = entry['activity']['name']
@@ -402,7 +444,7 @@ class Redmine_server_api:
     
     def report_time_entries_by_issue(self, user_id, start_date, end_data):
       
-        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         issue_report = {}
         for entry in time_entries:
             issue_id = entry['issue']['id']
