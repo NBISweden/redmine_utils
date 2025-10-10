@@ -3,3 +3,4 @@
 .*.sw*
 .Rproj
 .Rproj.user
+__pycache__/
