@@ -218,13 +218,18 @@ class Redmine_server_api:
   
       Args:
           project_id (int): The ID of the project.
-          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', '*')
+          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', '*', '[0-9]+ or the status id number for any other statuses')
           extra_params (dict): Additional query parameters to include in the request.
   
       Returns:
           list: A list if dictionaries with issue info for all issues in the project.
   
       """
+
+      # if status_id is a list, convert it to a string suitable for the API call
+      if isinstance(status_id, list):
+          status_id = [ ("status_id", id) for id in status_id ]
+
       issues = []
       page = 1
       while True:
@@ -248,6 +253,28 @@ class Redmine_server_api:
       return issues
 
 
+
+    def get_issue_journals(self, issue_id):
+      """
+      Retrieve all journals for an issue from the Redmine API by paginating through the results.
+  
+      Args:
+          issue_id (int): The ID of the issue.
+  
+      Returns:
+          list: A list if dictionaries with journal info for all journals in the issue.
+  
+      """
+
+      # Retrieve issues for the current page
+      response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers, params={ 'include': 'journals' } ) 
+      response.raise_for_status()
+
+      data = response.json()
+      return data['issue']['journals']
+
+
+    
     # def update_issue_standard_field(self, issue, field_name, value, id):
     #     """
     #     WORK IN PROGRESS -- it is unclear how to determine which fields take a string and which takes an id
@@ -279,7 +306,13 @@ class Redmine_server_api:
         Update the value of the given field in a given issue in the current
         Redmine instance. NB! Overwrites current value.
         """
-        field_id = get_custom_field_id(issue, field_name)
+
+        # check if field_name is int (id) or string (name)
+        if isinstance(field_name, int):
+            field_id = field_name
+        else:
+            field_id = get_custom_field_id(issue, field_name)
+
         # Create the payload for updating the issue status, and suppress email notifications and surveys
         payload = {
             "suppress_mail" : "1",
@@ -324,14 +357,18 @@ class Redmine_server_api:
         for field in fields:
             if issue[field] is None:
                 payload['issue'][field] = ''
-        #pprint(payload)
+
+        # check if custom_fields is in payload, if not add it
+        if 'custom_fields' not in payload['issue']:
+            payload['issue']['custom_fields'] = []
+
         # check if custom fields are None (will crash redmine if they are)
         for field in issue['custom_fields']:
           if field['value'] is None:
             payload['issue']['custom_fields'].append({'id': field['id'], 'value': ''})
           # check if custom fields have leading or trailing white spaces (email with white spaces will crash redmine)
           elif isinstance(field['value'], list) == False and field['value'] != field['value'].strip():
-            pprint(f"{field['value']} != {field['value'].strip()}:")
+            #pprint(f"{field['value']} != {field['value'].strip()}:")
             payload['issue']['custom_fields'].append({'id': field['id'], 'value': field['value'].strip()})
         # set url to update issue
         issue_url = f"{self.baseurl}/issues/{issue['id']}.json"
@@ -459,3 +496,20 @@ class Redmine_server_api:
 
         return issue_report
     
+
+
+
+    def update_issue_description(self, issue, new_description, suppress_mail=True):
+        """
+        Update the description of a given issue in the current
+        Redmine instance. NB! Overwrites current value.
+        """
+        # Create the payload for updating the issue status, and suppress email notifications and surveys
+        payload = {
+            "suppress_mail" : "1" if suppress_mail else "0",
+            "issue": {
+                "description": new_description
+            },
+        }
+        
+        return self.__update_issue(issue, payload)
