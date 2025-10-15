@@ -1,5 +1,16 @@
 *.yml
 *.yaml
 .*.sw*
-.Rproj
-.Rproj.user
+*.Rproj
+*.Rproj.user
+__pycache__/
+.gitattributes
+.DS_Store
+.RData
+.Rhistory
+pixi.lock
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+
