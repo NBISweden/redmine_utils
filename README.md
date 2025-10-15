@@ -60,6 +60,7 @@ python3 script_send_out_user_survey_to_closed_projects.py -c config.yaml -s 2025
 To keep track of start and end points.
 ```bash
 python3 script_send_out_user_survey_to_closed_projects.py -c config.yaml -s 2025-03-04 -e 2025-10-12
+```
 
 #### Other scripts
 - *script_bengt_vr_lifespan_stats.py* 
