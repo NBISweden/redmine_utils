@@ -21,10 +21,10 @@ library(knitr)
 library(reticulate)
 knitr::opts_chunk$set(echo = FALSE)
 
-myenvs=conda_list()
-
-envname=myenvs$name[1]
-use_condaenv(envname, required = TRUE)
+# Probably not needed anymore
+#myenvs=conda_list()
+#envname=myenvs$name[1]
+#use_condaenv(envname, required = TRUE)
 
 ```
 
@@ -82,7 +82,7 @@ approxJobHours = approxJobYear * fracYear
 
 The time logging categories from RedMine are grouped into useful categories as follows:
 
-```{r corrtabke, echo=FALSE}
+```{r corrtable, echo=FALSE}
 corr2 = corr
 corr2$redmine = lapply(corr2$redmine, paste, sep=";")
 kable(corr2)
