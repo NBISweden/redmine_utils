@@ -1,0 +1,6 @@
+.twoC {width: 120%;}
+.clearer {clear: both}
+.twoC img {max-width: 70%; float: left}
+.twoC .table {max-width: 30%; float: right}
+.twoC .text {width: 100%};
+.pgbr {width: 100%; margin-bottom: 20cm}
