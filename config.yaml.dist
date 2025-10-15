@@ -1,2 +1,8 @@
-url="https://redmine.url"
-api_key="aehaeh7ae98hae978h59a7e6"
+url: "https://redmine.url"
+api_key: "aehaeh7ae98hae978h59a7e6"
+
+# the mail settings below are only required by scripts that will send emails
+smtp_host: "mail.redmine.url"
+smtp_port: 587
+smtp_user: "redmine@redmine.url"
+smtp_password: "hunter2"

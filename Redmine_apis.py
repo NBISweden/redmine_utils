@@ -90,6 +90,7 @@ class Redmine_server_api:
       #                     "Accept": "application/json",
       #                     "Content-Type": "application/json",
                         }
+      self.issue_cache = {}
     
 
     def get_project_memberships(self, project_id):
@@ -211,23 +212,29 @@ class Redmine_server_api:
     
     
     
-    def get_all_project_issues(self, project_id, status_id = 'open'):
+    def get_all_project_issues(self, project_id, status_id = 'open', extra_params = {}):
       """
       Retrieve all issues in a project from the Redmine API by paginating through the results.
   
       Args:
           project_id (int): The ID of the project.
-          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', 'all'? -- check this!)
+          status_id (string): Retrieve only projects with status status_id (valid value ='open', 'closed', '*', '[0-9]+ or the status id number for any other statuses')
+          extra_params (dict): Additional query parameters to include in the request.
   
       Returns:
           list: A list if dictionaries with issue info for all issues in the project.
   
       """
+
+      # if status_id is a list, convert it to a string suitable for the API call
+      if isinstance(status_id, list):
+          status_id = [ ("status_id", id) for id in status_id ]
+
       issues = []
       page = 1
       while True:
           # Retrieve issues for the current page
-          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "status_id": status_id, "page": page }) 
+          response = requests.get(f"{self.baseurl}/issues.json", headers=self.headers, params={"project_id": project_id, "status_id": status_id, "page": page } | extra_params) 
           response.raise_for_status()
 
           data = response.json()
@@ -240,9 +247,34 @@ class Redmine_server_api:
           # Move to the next page
           page += 1
   
+      # add issues to the cache
+      self.issue_cache.update({ issue['id'] : issue for issue in issues })
+
       return issues
 
 
+
+    def get_issue_journals(self, issue_id):
+      """
+      Retrieve all journals for an issue from the Redmine API by paginating through the results.
+  
+      Args:
+          issue_id (int): The ID of the issue.
+  
+      Returns:
+          list: A list if dictionaries with journal info for all journals in the issue.
+  
+      """
+
+      # Retrieve issues for the current page
+      response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers, params={ 'include': 'journals' } ) 
+      response.raise_for_status()
+
+      data = response.json()
+      return data['issue']['journals']
+
+
+    
     # def update_issue_standard_field(self, issue, field_name, value, id):
     #     """
     #     WORK IN PROGRESS -- it is unclear how to determine which fields take a string and which takes an id
@@ -274,7 +306,13 @@ class Redmine_server_api:
         Update the value of the given field in a given issue in the current
         Redmine instance. NB! Overwrites current value.
         """
-        field_id = get_custom_field_id(issue, field_name)
+
+        # check if field_name is int (id) or string (name)
+        if isinstance(field_name, int):
+            field_id = field_name
+        else:
+            field_id = get_custom_field_id(issue, field_name)
+
         # Create the payload for updating the issue status, and suppress email notifications and surveys
         payload = {
             "suppress_mail" : "1",
@@ -290,19 +328,19 @@ class Redmine_server_api:
         
         return self.__update_issue(issue, payload)
     
-    def fetch_issue(self, issue_id):
+    def fetch_issue(self, issue_id, use_cache=True):
       """
       Fetch and cache issue details to minimize API requests.
       """
-      issue_cache = {}
-      if issue_id in issue_cache:
+
+      if use_cache and issue_id in self.issue_cache:
           return issue_cache[issue_id]
   
       response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers)
   
       if response.status_code == 200:
           issue_data = response.json()['issue']
-          issue_cache[issue_id] = issue_data
+          self.issue_cache[issue_id] = issue_data
           return issue_data
       else:
         raise Exception(f"Failed to fetch issue data: {response.status_code}")
@@ -319,14 +357,18 @@ class Redmine_server_api:
         for field in fields:
             if issue[field] is None:
                 payload['issue'][field] = ''
-        #pprint(payload)
+
+        # check if custom_fields is in payload, if not add it
+        if 'custom_fields' not in payload['issue']:
+            payload['issue']['custom_fields'] = []
+
         # check if custom fields are None (will crash redmine if they are)
         for field in issue['custom_fields']:
           if field['value'] is None:
             payload['issue']['custom_fields'].append({'id': field['id'], 'value': ''})
           # check if custom fields have leading or trailing white spaces (email with white spaces will crash redmine)
           elif isinstance(field['value'], list) == False and field['value'] != field['value'].strip():
-            pprint(f"{field['value']} != {field['value'].strip()}:")
+            #pprint(f"{field['value']} != {field['value'].strip()}:")
             payload['issue']['custom_fields'].append({'id': field['id'], 'value': field['value'].strip()})
         # set url to update issue
         issue_url = f"{self.baseurl}/issues/{issue['id']}.json"
@@ -337,7 +379,7 @@ class Redmine_server_api:
         return response
 
 
-    def fetch_time_entries(self,  user_id, start_date, end_date):
+    def fetch_time_entries_by_user_id(self, user_id, start_date, end_date):
         """
         Helper function for producing a Spent time report
         should not be called directly
@@ -348,10 +390,8 @@ class Redmine_server_api:
         # start_date = datetime.date(year, 1, 1).isoformat()
         # end_date = datetime.date(year, 12, 31).isoformat()
         limit = 100  # Adjust based on your needs
-        offset = 0
         time_entries = []
     
-        times=0
         page = 1
         while True:
             params = {
@@ -375,14 +415,53 @@ class Redmine_server_api:
                 break  # Exit loop if last page
     
             page += 1
-            times += 1
             
-#            offset += limit
         return time_entries
+
+
     
+    def fetch_time_entries_by_project_id(self, project_id, start_date, end_date):
+        """
+        arguments:
+          start_date and end_date: in isoformat,e.g., 2024-09-11
+          project_id (int)
+        """
+        # start_date = datetime.date(year, 1, 1).isoformat()
+        # end_date = datetime.date(year, 12, 31).isoformat()
+        limit = 100  # Adjust based on your needs
+        time_entries = []
+    
+        page = 1
+        while True:
+            params = {
+                'project_id': project_id,
+                'from': start_date,
+                'to': end_date,
+                'limit': limit,
+                'page': page,
+                'tracker': True,
+            }
+            response = requests.get(f"{self.baseurl}/time_entries.json", headers=self.headers, params=params)
+#            response = requests.get(f'{base_url}/time_entries.json', headers=headers, params=params)
+            if response.status_code != 200:
+                print("Failed to fetch data:", response.status_code)
+                break
+    
+            data = response.json()
+            time_entries.extend(data.get('time_entries', []))
+
+            if len(data.get('time_entries', [])) < limit:
+                break  # Exit loop if last page
+    
+            page += 1
+            
+        return time_entries
+
+
+
     def report_time_entries_by_activity_and_month(self, user_id, start_date, end_data):
       
-        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         activity_report = {}
         for entry in time_entries:
             activity = entry['activity']['name']
@@ -402,7 +481,7 @@ class Redmine_server_api:
     
     def report_time_entries_by_issue(self, user_id, start_date, end_data):
       
-        time_entries = self.fetch_time_entries(user_id, start_date, end_data)
+        time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         issue_report = {}
         for entry in time_entries:
             issue_id = entry['issue']['id']
@@ -417,3 +496,20 @@ class Redmine_server_api:
 
         return issue_report
     
+
+
+
+    def update_issue_description(self, issue, new_description, suppress_mail=True):
+        """
+        Update the description of a given issue in the current
+        Redmine instance. NB! Overwrites current value.
+        """
+        # Create the payload for updating the issue status, and suppress email notifications and surveys
+        payload = {
+            "suppress_mail" : "1" if suppress_mail else "0",
+            "issue": {
+                "description": new_description
+            },
+        }
+        
+        return self.__update_issue(issue, payload)
