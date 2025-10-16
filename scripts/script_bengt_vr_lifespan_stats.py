@@ -4,7 +4,9 @@
 
 # make the parent directory available for imports, to be able to import Redmine_apis.py there
 import sys
-sys.path.append('..')
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent
+sys.path.append(str(parent_dir))
 
 from Redmine_apis import Redmine_server_api
 from pprint import pprint
