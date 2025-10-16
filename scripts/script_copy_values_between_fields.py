@@ -1,13 +1,21 @@
-from Redmine_apis import *
+#!/bin/env python3
+
+# Author: Bengt S, NBIS
+
+# make the parent directory available for imports, to be able to import Redmine_apis.py there
 import sys
-import yaml
-import argparse
-import requests
-import pdb
+sys.path.append('..')
+
+from Redmine_apis import *
 from pprint import pprint
+import argparse
 import datetime
-import time
+import pdb
 import re
+import requests
+import sys
+import time
+import yaml
 
 def main():
     """

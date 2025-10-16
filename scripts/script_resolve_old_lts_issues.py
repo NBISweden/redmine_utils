@@ -1,9 +1,13 @@
-import yaml
-import argparse
-import requests
-import pdb
+#!/bin/env python3
+
+# Author: Martin D, NBIS
+
 from pprint import pprint
+import argparse
 import datetime
+import pdb
+import requests
+import yaml
 
 def main():
     """

@@ -1,13 +1,19 @@
 #!/bin/env python3
 
-import os
-import datetime
-import yaml
-import argparse
-from pprint import pprint
+# Author: Martin D, NBIS
+
+# make the parent directory available for imports, to be able to import Redmine_apis.py there
+import sys
+sys.path.append('..')
+
 from Redmine_apis import Redmine_server_api
-import pdb
+from pprint import pprint
+import argparse
+import datetime
 import logging
+import os
+import pdb
+import yaml
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
