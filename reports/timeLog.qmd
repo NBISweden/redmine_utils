@@ -9,7 +9,7 @@ format:
     page-layout: full
 params: # Change to fit your query
   config_file: config.yaml #.dist
-  users: [ "John Doe", "Jane Doe" ]
+  users: [ "Eva Freyhult", "Yuan Li" ] #[ "John Doe", "Jane Doe" ]
   start_date: 2024-09-01
   end_date: 2025-08-31
 execute:
@@ -104,6 +104,12 @@ The PercentExp denotes percent of approximate expected yearly work time, here th
 <div class=pgbr>
 
 ```{python, echo=FALSE, eval=TRUE}
+# make the parent directory available for imports, to be able to import Redmine_apis.py there
+import os
+import sys
+from pathlib import Path
+lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+sys.path.append(str(lib_dir))   
 
 # Get the records from Redmine
 from Redmine_apis import *

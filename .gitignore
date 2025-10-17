@@ -14,3 +14,7 @@ pixi.lock
 !.pixi/config.toml
 
 
+.Rproj.user
+
+/.quarto/
+**/*.quarto_ipynb

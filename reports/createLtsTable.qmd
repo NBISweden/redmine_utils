@@ -16,7 +16,7 @@ params:
 This is a table of all currently open NBIS Peer review (WABI) projects with selected fields given. It will be updated monthly (currently done by manually running a script -- we will try to automatise the update). 
 
 - It is possible to sort then table on any column -- click on the small arrow next to the column name to sort alphanumerically or reversly alphanumerically. 
-- *Unfortunately, I did not get filtering on column values to work on confluence. You have to sort and scroll to get your projects :(*
+- *Unfortunately, I did not get filtering on column vals to work on confluence. You have to sort and scroll to get your projects☹️*
 
 NB! You can not do any edits or updates directly in this table as they would be over-written next time the table is updated. Do all edits directly in Redmine instead!
 
@@ -35,7 +35,15 @@ If you have any comments or suggestion (e.g., add an additional field), please p
         a. Remind the person, or
         b. Go to Redmine and add the person as Coordinator manually
 
+
 ```{python, echo=FALSE, eval=TRUE}
+# make the parent directory available for imports, to be able to import Redmine_apis.py below
+import os
+import sys
+from pathlib import Path
+lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+sys.path.append(str(lib_dir))   
+
 from Redmine_apis import *
 import pandas as pd
 import yaml

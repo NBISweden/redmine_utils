@@ -334,7 +334,7 @@ class Redmine_server_api:
       """
 
       if use_cache and issue_id in self.issue_cache:
-          return issue_cache[issue_id]
+          return self.issue_cache[issue_id]
   
       response = requests.get(f"{self.baseurl}/issues/{issue_id}.json", headers=self.headers)
   
