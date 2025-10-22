@@ -16,15 +16,21 @@ execute:
   freeze: false
 ---
 
+
+
 ```{r setup, include=FALSE}
 library(knitr)
 library(reticulate)
 knitr::opts_chunk$set(echo = FALSE)
 
-# Probably not needed anymore
-#myenvs=conda_list()
-#envname=myenvs$name[1]
-#use_condaenv(envname, required = TRUE)
+cwd = getwd()
+base = dirname(cwd)
+python_path = file.path(base,".pixi/envs/default/bin/python") 
+lib_path = file.path(base,"lib") 
+reticulate::use_python(python_path, required=T )
+
+# read all config
+config = yaml::yaml.load_file(as.character(params['config_file']))
 
 ```
 
@@ -103,13 +109,19 @@ The PercentExp denotes percent of approximate expected yearly work time, here th
 
 <div class=pgbr>
 
-```{python, echo=FALSE, eval=TRUE}
+
+```{python}
+#| label: fetch-redmine
+#| echo: false
+#| eval: true
+
 # make the parent directory available for imports, to be able to import Redmine_apis.py there
 import os
 import sys
 from pathlib import Path
-lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
-sys.path.append(str(lib_dir))   
+#lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+#lib_dir = os.environ["PIXI_PROJECT_ROOT"] + "/lib"
+sys.path.append(str(r.lib_path))   
 
 # Get the records from Redmine
 from Redmine_apis import *
@@ -132,26 +144,39 @@ userNameToId = redmine.create_user_name_to_id(project_id)
 
 allTimeLog = {}
 allTimeLogIssue = {}
-for user in r.params["users"]: 
+for user in config["users"]: 
   user_id = userNameToId[user]
-  userTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_activity_and_month(user_id, r.params["start_date"], r.params["end_date"]), orient='index')
+  userTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_activity_and_month(user_id, config["start_date"], config["end_date"]), orient='index')
   ordCols = sorted(userTimeLog.columns)
   userTimeLog["Activity"] = userTimeLog.index
   allTimeLog[user] =  userTimeLog[["Activity"]+ordCols]
   
-  userIssueTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_issue(user_id, r.params["start_date"], r.params["end_date"]), orient='index')
+  userIssueTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_issue(user_id, config["start_date"], config["end_date"]), orient='index')
   allTimeLogIssue[user] =  userIssueTimeLog.sort_values(by=['Project', 'Tracker', 'Total time'], ascending = False)
   
 ```
 
-```{r redmine, results='asis'}
+## Spent time 
+
+**Summary of time logging for the period **  (`r paste0($start_date," -- ", config$end_date)`).
+
+
+::: {.panel-tabset}
+
+
+```{r redmine}
+#| output: asis
+#| echo: false
+
 library(reticulate)
 library(knitr)
 library(kableExtra)
 
-for(key in params$users){ 
-  cat(paste0("\n## Summary of time logging for the period ",params$start_date," -- ", params$end_date,"\n"))
-  cat(paste("##", key, "\n"))
+#cat(paste0("\n Summary of time logging for the period ",params$start_date," -- ", params$end_date,"\n"))
+
+for(key in config$users){ 
+ 
+  cat(paste("### ", key, "\n"))
   raw = data.frame(py$allTimeLog[key], stringsAsFactors=TRUE, check.names = FALSE)
   names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
   raw[is.na(raw)] <- 0
@@ -201,14 +226,14 @@ for(key in params$users){
   cat('</div>\n')
 
   # Full Time Log distributed over months  
-  cat(paste("### Full Time Log distributed over activities and months for", key,"\n"))
+  cat(paste("#### Full Time Log distributed over activities and months for", key,"\n"))
   print(kable(raw, row.names = FALSE, "html") %>% 
           kable_styling("condensed", font_size = 10, full_width=F))
 
   # Full Time Log distributed over issues
   raw = data.frame(py$allTimeLogIssue[key], stringsAsFactors=TRUE, check.names = FALSE)
   names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
-  cat(paste("### Full Time Log distributed over issues for", key,"\n"))
+  cat(paste("#### Full Time Log distributed over issues for", key,"\n"))
   print(kable(raw, row.names = TRUE, "html") %>% 
           kable_styling("condensed", font_size = 10, full_width=F))
 
@@ -220,4 +245,6 @@ for(key in params$users){
   }
 }
 ```
+
+:::
 </div>

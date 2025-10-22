@@ -1,0 +1,15 @@
+url: "https://projects.nbis.se"
+api_key: "..."
+
+
+# for timeLog.qmd, set time range and list of staff
+start_date: 2025-01-01
+end_date: 2025_10-20
+users: ["Eva Freyhult", "Yuan Li"]
+
+
+# the mail settings below are only required by scripts that will send emails
+smtp_host: "mail.redmine.url"
+smtp_port: 587
+smtp_user: "redmine@redmine.url"
+smtp_password: "hunter2"
