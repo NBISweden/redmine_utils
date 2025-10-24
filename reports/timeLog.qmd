@@ -109,7 +109,6 @@ The PercentExp denotes percent of approximate expected yearly work time, here th
 
 <div class=pgbr>
 
-
 ```{python}
 #| label: fetch-redmine
 #| echo: false
@@ -142,23 +141,26 @@ project_name = 'Long-term Support'
 project_id = redmine.find_project_id_from_name(project_name)
 userNameToId = redmine.create_user_name_to_id(project_id)
 
+
 allTimeLog = {}
 allTimeLogIssue = {}
 for user in config["users"]: 
   user_id = userNameToId[user]
-  userTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_activity_and_month(user_id, config["start_date"], config["end_date"]), orient='index')
+  userTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_activity_and_month(user_id, config["start_date"].strftime('%Y-%m-%d'), config["end_date"].strftime('%Y-%m-%d')), orient='index')
   ordCols = sorted(userTimeLog.columns)
   userTimeLog["Activity"] = userTimeLog.index
   allTimeLog[user] =  userTimeLog[["Activity"]+ordCols]
   
   userIssueTimeLog =  pd.DataFrame.from_dict(redmine.report_time_entries_by_issue(user_id, config["start_date"], config["end_date"]), orient='index')
   allTimeLogIssue[user] =  userIssueTimeLog.sort_values(by=['Project', 'Tracker', 'Total time'], ascending = False)
-  
+
 ```
+
+
 
 ## Spent time 
 
-**Summary of time logging for the period **  (`r paste0($start_date," -- ", config$end_date)`).
+**Summary of time logging for the period **  (`r paste0(config$start_date," -- ", config$end_date)`).
 
 
 ::: {.panel-tabset}
