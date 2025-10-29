@@ -146,7 +146,16 @@ if args.verbose:
 # send out the survey emails
 logger.info('Starting to send out survey emails')
 for issue in resolved_issues:
-    custom_fields = { cf['id']: cf['value'] for cf in issue.get('custom_fields', []) } # get all custom fields as a dict
+
+    # get all custom fields as a dict
+    custom_fields = { cf['id']: cf['value'] for cf in issue.get('custom_fields', []) } 
+
+    # skip issues that have custom filed 22 (send survey) set to 0
+    send_survey = custom_fields.get(22) # custom field 22 = send survey
+    if send_survey != '1':
+        logger.debug(f'Skipping issue {issue["id"]} as send survey custom field is not set to 1')
+        continue
+
     pi_email = custom_fields.get(18) # custom field 18 = PI email
     issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
     if not pi_email:
@@ -157,7 +166,7 @@ for issue in resolved_issues:
     email_body = email_template.render(project_name=issue['subject'], nbis_subunit_name=f" {args.nbis_subunit_name}" if args.nbis_subunit_name else "", form_url=args.form_url)
 
     # send email
-    email_subject = f"NBIS User Survey - Feedback for \'{issue['subject']}'"
+    email_subject = f"NBIS{f" {args.nbis_subunit_name}" if args.nbis_subunit_name else ""} User Survey - Feedback for \'{issue['subject']}'"
     logger.debug(f'Sending email to {pi_email} for issue {issue["id"]}')
     logger.debug(f'Email subject: {email_subject}')
     logger.debug(f'Email body:\n{email_body}')
