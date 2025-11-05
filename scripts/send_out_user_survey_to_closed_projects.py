@@ -21,6 +21,9 @@ import time
 import yaml
 import jinja2
 
+# save start time for log file name
+start_time = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -143,6 +146,10 @@ if args.verbose:
         issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
         logger.debug(f"{pi_email}\t{issue_url}")
 
+# open log file for sending emails
+if not args.dry_run:
+    send_log_file = open(f"send_log.{start_time}.log", 'w')
+
 # send out the survey emails
 logger.info('Starting to send out survey emails')
 for issue in resolved_issues:
@@ -183,6 +190,7 @@ for issue in resolved_issues:
         else:
             server.sendmail(msg['From'], [msg['To']], msg.as_string())
             logger.info(f'Email sent to {pi_email} for issue {issue["id"]}')
+            send_log_file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\t{pi_email}\t{issue_url}\n")
 
     # update the issue description to add a note about survey sent, and disable send survey custom field (cf_22) to 0
     if not args.dry_run:
@@ -200,6 +208,11 @@ for issue in resolved_issues:
     #time.sleep(1)
 
 logger.info('All survey emails sent')
+
+if not args.dry_run:
+    send_log_file.close()
+    logger.info(f'Send log file written to send_log.{start_time}.log')
+
 logger.info('Script completed successfully')
 # end of script
 
