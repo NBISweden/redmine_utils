@@ -5,6 +5,7 @@
 *.Rproj.user
 __pycache__/
 .gitattributes
+*.log
 .DS_Store
 .RData
 .Rhistory
