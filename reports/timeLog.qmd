@@ -9,17 +9,26 @@ format:
     page-layout: full
 params: # Change to fit your query
   config_file: config.yaml #.dist
-  users: [ "Eva Freyhult", "Yuan Li" ] #[ "John Doe", "Jane Doe" ]
-  start_date: 2024-09-01
-  end_date: 2025-08-31
+  users: [ "John Doe", "Jane Doe" ]
+  start_date: 2024-12-01
+  end_date: 2025-11-31
 execute:
   freeze: false
 ---
 
 ```{r setup, include=FALSE}
+#py_dir = "{}/.pixi/envs/default/bin/python".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+#Sys.setenv(RETICULATE_PYTHON="../.pixi/envs/default/bin/python")
 library(knitr)
 library(reticulate)
 knitr::opts_chunk$set(echo = FALSE)
+
+cwd = getwd()
+base = dirname(cwd)
+python_path = file.path(base,".pixi/envs/default/bin/python") 
+lib_path = file.path(base,"lib") 
+reticulate::use_python(python_path, required=T )
+
 
 # Probably not needed anymore
 #myenvs=conda_list()
@@ -108,8 +117,8 @@ The PercentExp denotes percent of approximate expected yearly work time, here th
 import os
 import sys
 from pathlib import Path
-lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
-sys.path.append(str(lib_dir))   
+#lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+sys.path.append(str(r.lib_path))   
 
 # Get the records from Redmine
 from Redmine_apis import *

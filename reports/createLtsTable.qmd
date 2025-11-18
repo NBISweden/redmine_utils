@@ -11,6 +11,26 @@ params:
   config_file: config.yaml #.dist
   
 ---
+```{r setup, include=FALSE}
+#py_dir = "{}/.pixi/envs/default/bin/python".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+#Sys.setenv(RETICULATE_PYTHON="../.pixi/envs/default/bin/python")
+library(knitr)
+library(reticulate)
+knitr::opts_chunk$set(echo = FALSE)
+
+cwd = getwd()
+base = dirname(cwd)
+python_path = file.path(base,".pixi/envs/default/bin/python") 
+lib_path = file.path(base,"lib") 
+reticulate::use_python(python_path, required=T )
+
+
+# Probably not needed anymore
+#myenvs=conda_list()
+#envname=myenvs$name[1]
+#use_condaenv(envname, required = TRUE)
+
+```
 
 # Introduction
 This is a table of all currently open NBIS Peer review (WABI) projects with selected fields given. It will be updated monthly (currently done by manually running a script -- we will try to automatise the update). 
@@ -41,8 +61,9 @@ If you have any comments or suggestion (e.g., add an additional field), please p
 import os
 import sys
 from pathlib import Path
-lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
-sys.path.append(str(lib_dir))   
+#lib_dir = "{}/lib".format(Path(os.environ["QUARTO_PROJECT_ROOT"]).parent)
+#sys.path.append(str(lib_dir))   
+sys.path.append(str(r.lib_path)) 
 
 from Redmine_apis import *
 import pandas as pd

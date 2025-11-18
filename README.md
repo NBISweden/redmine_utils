@@ -19,6 +19,9 @@ NB! If you are not on MacOSX or this does not work directly, you might need to o
 editor and change the line `rstudio = "/Applications/RStudio.app/Contents/MacOS/RStudio"` to point to the location of 
 your rstudio installation. 
 
+#### NB! You might also need a conda installation on your system
+Some of the quarto-reports use R-reticulate, which apparentlywill look for a system conda installation. This appears to be a known bug with pixi (sigh!) 
+
 ## Content
 
 ### `config.yaml.dist`
