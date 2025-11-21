@@ -8,13 +8,32 @@ format:
     self-contained: true
     page-layout: full
 params: # Change to fit your query
-  config_file: config.yaml #.dist
-  users: [ "Eva Freyhult", "Yuan Li" ] #[ "John Doe", "Jane Doe" ]
-  start_date: 2024-09-01
-  end_date: 2025-08-31
+  config_file: ../config.yaml #.dist
+  users: [ "André Soares", "Allison Churcher", "Lucile Soler", "Cormac Kinsella", "Mahesh Binzer-Panchal", "Estelle Proux-Wéra", "Guilherme Dias", "Martin Pippel", "Miguel Angel Redondo", "Nikolay Oskolkov", "Per Unneberg", "Tomas Larsson", "Verena Kutschera" ] #[ "John Doe", "Jane Doe" ]
+  start_date: 2024-11-15
+  end_date: 2025-11-14
 execute:
   freeze: false
 ---
+
+```{r pixi-config, include=FALSE}
+# Find the absolute path to the Python executable managed by Pixi
+pixi_env_path <- Sys.getenv("CONDA_PREFIX", unset = "")
+
+if (pixi_env_path != "") {
+  # Use the Python executable inside the activated Pixi/Conda environment
+  reticulate::use_python(file.path(pixi_env_path, "bin", "python"), required = TRUE)
+} else {
+  # If CONDA_PREFIX is not set, try to use the environment name
+  # NOTE: This step is less reliable than using the full path.
+  # You need to replace 'your_pixi_env_name' with the actual name or skip this if 'pixi shell' works.
+  # reticulate::use_condaenv("your_pixi_env_name", required = TRUE)
+  
+  warning("CONDA_PREFIX environment variable not set. Please ensure you knit from a 'pixi shell'.")
+}
+
+# Optional: Print the config
+```
 
 ```{r setup, include=FALSE}
 library(knitr)
