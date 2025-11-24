@@ -11,8 +11,7 @@ To run scripts in command-line, first do:
 
         pixi shell
 
-To start Rstudio from within the pixi workspace, do:
-
+If you want to start your system's rstudio (i.e., not provided by pixi) from within the pixi workspace, do:
         pixi run rstudio
 
 NB! If you are not on MacOSX or this does not work directly, you might need to open the file *pixi.toml* in your text 
@@ -20,12 +19,13 @@ editor and change the line `rstudio = "/Applications/RStudio.app/Contents/MacOS/
 your rstudio installation. 
 
 #### NB! You might also need a conda installation on your system
-Some of the quarto-reports use R-reticulate, which apparentlywill look for a system conda installation. This appears to be a known bug with pixi (sigh!) 
+Some of the quarto-reports use R-reticulate, which apparently will look for a system conda installation. 
+This appears to be a known bug with pixi (sigh!). (A plan is to try to switch R-code in quarto docs to python)
 
 ## Content
 
 ### `config.yaml.dist`
-Dummy template for the user-created file *config.yaml* containing address to the Redmine API 
+Dummy template for the user-created file `config.yaml containing address to the Redmine API 
 and user's API-key (available from 'My account'-page in NBIS Redmine)
 
 ### `pixi.toml` 

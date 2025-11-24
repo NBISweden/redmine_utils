@@ -12,18 +12,27 @@ To run scripts in command-line, first do:
 
         pixi shell
 
-To start rstudio from within the pixi workspace, do:
+If you want to start your system's rstudio (i.e., not provided by pixi) from within the pixi workspace, do:
 
         pixi run rstudio
 
 NB! If this does not work directly, you might need to open the file *pixi.toml* in your text editor and change the 
 line `rstudio = "/Applications/RStudio.app/Contents/MacOS/RStudio"` to point to the location of your Rstudio installation. 
 
+#### NB! You might also need a conda installation on your system
+Some of the quarto-reports use R-reticulate, which apparently will look for a system conda installation. 
+This appears to be a known bug with pixi (sigh!). (A plan is to try to switch R-code in quarto docs to python)
+
 ## Content
 
 #### `timeLog.qmd`
 Extracts logged time for user-defined NBSI experts and period of time and creates a timelog report 
-with circle diagrams and tables. Typåically trun from within rstudio (see above).
+with circle diagrams and tables. Can be run from within rstudio (see above) or with `quarto render`.
+
+#### `timeLogParams.yaml.dist`
+Dummy template for the user-created file `timeLogParams.yaml`, with parameters for the `timeLog.qmd` script, 
+including a list of users to include tim logs for, the start and end dates of the period to show timelog ofr, 
+and a pointer to the config-file with Redmine address and api-key.
 
 #### `createLtsTable.qmd`
 Creates the _Table of Peer Review (WABI) projects_ on the 

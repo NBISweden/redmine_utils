@@ -1,0 +1,8 @@
+  config_file: "../config.yaml" # the file with your Redmine addess and API key
+  # if left empty all users having logged time during interval will be included
+  users:
+   - "John Doe"
+   - "Jane Doe"
+  # start and end dates of timeLog period
+  start_date: 2024-12-01
+  end_date: 2025-11-30
