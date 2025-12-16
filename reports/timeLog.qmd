@@ -7,69 +7,71 @@ format:
   confluence-html:
     self-contained: true
     page-layout: full
-params: # Change to fit your query
-  params_file: timeLogParams.yaml
+    fig-width: 10
+    fig-height: 6    
 execute:
   freeze: false
+  echo: false
+  warning: false
 ---
 
-```{r setup, include=FALSE}
-library(knitr)
-library(reticulate)
-library(yaml)
-knitr::opts_chunk$set(echo = FALSE)
+```{python}
+#| label: params
 
-cwd = getwd()
-base = dirname(cwd)
-lib_path = file.path(base,"lib") 
+params_file = "timeLogParams.yaml"
 
-# Find the absolute path to the Python executable managed by Pixi
-pixi_env_path = Sys.getenv("CONDA_PREFIX", unset = "")
-if (pixi_env_path != "") {
-  # Use the Python executable inside the activated Pixi/Conda environment
-  reticulate::use_python(file.path(pixi_env_path, "bin", "python"), required = TRUE)
-} else {
-  # If CONDA_PREFIX is not set, try to use the environment name
-  python_path = file.path(base,".pixi/envs/default/bin/python") 
-  reticulate::use_python(python_path, required=T )
-  warning("CONDA_PREFIX environment variable not set. Please ensure you knit from a 'pixi shell'.")
-}
-# Read all params
-myparams = read_yaml(params$params_file)
 ```
 
-```{r correspond}
+```{python}
+#| label: setup
+
+import os, sys
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import yaml
+import pandas as pd
+import datetime
+import seaborn as sns
+from IPython.display import display, Markdown
+
+# get path to import the Redmine API tools
+lib_path = os.path.split(os.getcwd())[0] + "/lib"
+sys.path.append(lib_path) 
+from Redmine_apis import *
+
+
+# Read all params
+with open(params_file, 'r') as stream:
+    myparams = yaml.safe_load(stream)
+
+```
+
+```{python}
+#| label: activities
+
+
 # Define how to group Redmine Activities
-corr = data.frame(
-  redmine=I(list(
-    "Absence (Vacation/VAB/Other)",                         # Absence
-    "Administration",                                       # Administration
-    "Internal NBIS",                                        # Internal NBIS
-    c("NBIS Management", "Management"),                     # Coordination
-    c("Development", "Internal consultation", "Outreach"),  # Community
-    "Professional Development",                             # Professional development
-    c("Consultation", "Support", "Internal consultation"),  # Support
-    "Training"                                              # Training
-  )), 
-  row.names=c(
-    "Absence",
-    "Administration",
-    "Internal NBIS",
-    "Coordination",
-    "Community", 
-    "Professional Development",
-    "Support",
-    "Training"
-  )
-)
+corr = {
+    "Absence": ["Absence (Vacation/VAB/Other)"],           # Absence
+    "Administration": [ "Administration"],                 # Administration
+    "Internal NBIS": [ "Internal NBIS"],                   # Internal NBIS
+    "Coordination": ["NBIS Management", "Management"],        # Coordination
+    "Community": ["Development", "Internal consultation", "Outreach"],     # Community
+    "Professional Development": ["Professional Development"], # Professional development
+    "Support": ["Consultation", "Support"],  # Support
+    "Training": ["Training"]                                                         # Training
+}
 
-presence = c("Administration", "Internal NBIS", "Coordination", "Community", "Professional Development", "Support", "Training")
-output = c("Consultation", "Coordination","Community", "Support", "Training")
 
-approxJobYear = 1983 #hours
-approxWorkYear = 1700 #hours
+presence = ["Administration", "Internal NBIS", "Coordination", "Community", "Consultation", "Professional Development", "Support", "Training"]
+output = ["Consultation", "Coordination","Community", "Support", "Training"]
+#output = ["Consultation","Community", "Support", "Training"]
 
-fracYear = as.numeric(as.Date(myparams$end_date) - as.Date(myparams$start_date))/365
+approxJobYear = 1983 #hours total hours in a year excluding red working days (but not vacation)?
+approxWorkYear = 1700 #hours NOT USED??
+
+diff = myparams['end_date'] - myparams['start_date']
+fracYear = diff.days / 365
 approxJobHours = approxJobYear * fracYear
 ```
 
@@ -77,13 +79,53 @@ approxJobHours = approxJobYear * fracYear
 
 The time logging categories from RedMine are grouped into useful categories as follows:
 
-```{r corrtable, echo=FALSE}
-# Display how we group the redmine activites
-corr2 = corr
-corr2$redmine = lapply(corr2$redmine, paste, sep=";")
-kable(corr2)
+
+```{python}
+#| label: tbl-activities
+#| 
+corr_text = {}
+for k in corr.keys():
+  corr_text[k] = ', '.join(corr[k])
+
+df = pd.DataFrame.from_dict(corr_text, orient='index', columns=['Redmine'])
+
+display(df)
+
+
 
 ```
+
+```{python}
+#|  eval: false
+
+#display(Markdown(df.to_markdown(index = False)))
+df
+```
+
+```{python}
+#|  eval: false
+from IPython.display import HTML
+print("display(HTML(df.to_html()))")
+display(HTML(df.to_html()))
+```
+
+```{python}
+#|  eval: false
+from tabulate import tabulate
+print("display(tabulate(df))")
+display(tabulate(df))
+
+```
+
+```{python}
+#|  eval: false
+#|  tbl-colwidths: [20,80]
+print("display(df)")
+display(df)
+```
+
+
+
 
 Three different pie-charts/table approaches are shown.
 
@@ -93,26 +135,52 @@ The PercentExp denotes percent of approximate expected yearly work time, here th
 
 2. **Distribution of presence time on different categories** (see table).
 
-3. **Distribution of presence time on _output_** Output = (`r paste(output, sep=",")`).
+3. **Distribution of presence time on _output_** Output = (`{python} ", ".join(output)`).
 
 (kudos to Henrik)
 
 <div class=pgbr>
 
-```{python redmine, echo=FALSE, eval=TRUE}
+
+```{python}
+#| eval: false
+# possibly add to Redmine_apis.py later
+
+
+
+def report_time_entries_by_activity_and_month_support_issues(rm, user_id, start_date, end_data):
+      
+        time_entries = rm.fetch_time_entries_by_user_id(user_id, start_date, end_data)
+        activity_report = {}
+        for entry in time_entries:
+            activity = entry['activity']['name']
+            spent_date = datetime.datetime.strptime(entry['spent_on'], '%Y-%m-%d').date()
+            month = f"{spent_date.year}-{spent_date.month}"
+            hours = entry['hours']
+            if activity not in activity_report:
+                activity_report[activity] = { 'Total time' : 0 }  # Initialize if not exist
+            
+            if month not in activity_report[activity]:
+                activity_report[activity][month] = 0  # Initialize month if not exist
+            
+            activity_report[activity][month] += hours
+            activity_report[activity]['Total time'] += hours
+            
+        return activity_report
+```
+
+```{python}
+#| label: redmine
+#| echo: false
+#| eval: true
+
 # make the redmin_utils lib directory available for imports, 
 # to be able to import Redmine_apis.py from there
-import sys
-sys.path.append(str(r.lib_path))   
-
 # Get the records from Redmine
-from Redmine_apis import *
-import pandas as pd
-import yaml
-import datetime
+
 
 # Load Redmine credentials from YAML config file
-with open(r.myparams['config_file'], 'r') as config_file:
+with open(myparams['config_file'], 'r') as config_file:
     config = yaml.safe_load(config_file)
 
 # Open Redamine API
@@ -123,174 +191,244 @@ project_name = 'Long-term Support'
 project_id = redmine.find_project_id_from_name(project_name)
 userNameToId = redmine.create_user_name_to_id(project_id)
 
-pyparams = r.myparams # r.myparams["users"] appears to be immutable in this chunk
 # Handle empty user list
-if(pyparams["users"] == None):
-  pyparams["users"] = list(userNameToId.keys())
+if(myparams["users"] == None):
+  myparams["users"] = list(userNameToId.keys())
 # Handle single use in list
-if(isinstance(pyparams["users"], list) == False):
-  pyparams["users"] = [ pyparams["users"] ]
+if(isinstance(myparams["users"], list) == False):
+  myparams["users"] = [ pyparams["users"] ]
 
 allTimeLog = {}
 allTimeLogIssue = {}
 deletedUsers = []
-for user in pyparams["users"]: 
+for user in myparams["users"]: 
   if(not user):  # Only actual users will be handled
     deletedUsers.append(user)
     continue
   user_id = userNameToId[user]
   userTimeLog =  pd.DataFrame.from_dict(
     redmine.report_time_entries_by_activity_and_month(
-      user_id, pyparams["start_date"], pyparams["end_date"]),
+      user_id, myparams["start_date"], myparams["end_date"]),
       orient='index')
-  ordCols = sorted(userTimeLog.columns)
+  ordCols = userTimeLog.columns[::-1]
   # An ineffective way of getting rid of people that have quit, or more
   # precisely, people who have not logged time in the requested time interval
   if(userTimeLog.empty == False):
     userTimeLog["Activity"] = userTimeLog.index
-    allTimeLog[user] =  userTimeLog[ ["Activity"] + ordCols ]
+    allTimeLog[user] =  userTimeLog[ ["Activity"] + list(ordCols) ]
     userIssueTimeLog = pd.DataFrame.from_dict(
       redmine.report_time_entries_by_issue(
         user_id, 
-        pyparams["start_date"], 
-        pyparams["end_date"]
+        myparams["start_date"], 
+        myparams["end_date"]
         ), orient='index')
     allTimeLogIssue[user] =  userIssueTimeLog.sort_values(
       by=['Project', 'Tracker', 'Total time'],
       ascending = False)
   else:
     deletedUsers.append(user)
-pyparams["users"] = [ a for a in pyparams["users"]  if a not in deletedUsers ]
-r.myparams = pyparams # ...but you are allowed to change the whole of r.myparams -- strange!
-pyparams = None # clear in case this duplicate is really big
+    print(user + " has not logged any time in the interval, skipping!")
+
 ```
 
-```{r visualize, results='asis'}
-library(kableExtra) 
 
-for(key in myparams$users){ 
-  cat(paste0(
-    "\n## Summary of time logging for the period",
-    myparams$start_date," -- ", myparams$end_date,"\n")
-    )
-  cat(paste("##", key, "\n"))
-  raw = data.frame(py$allTimeLog[key], 
-                   stringsAsFactors=TRUE, 
-                   check.names = FALSE )
-  names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
-  raw[is.na(raw)] <- 0
-  ret = data.frame("Activity"=character(), "Time"= double())
-  for(i in row.names(corr)){
-    ret = rbind(
-      ret,
-      data.frame("Activity"= i, 
-                 "Time" = sum(raw[raw$Activity %in% unlist(corr[i,"redmine"]),
-                                  "Total time"])
-                 )
-      )
-  }
-  # Presence/absence
-  cat('<div class="columns">\n')
-  curr = ret[ret$Activity == "Absence", ]
-  curr = rbind(
-    curr, 
-    data.frame(Activity = "Presence", 
-               "Time" = sum(ret[ret$Activity %in% presence, "Time"])
-               )
-    )
-  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
-  curr$PercentExp = round(curr$Time/approxJobHours * 100, 2)
-  cat('<div class="column" width="70%">\n')
-  pie(
-    curr$Time, labels=curr$Activity, 
-    main=paste("Absence/presence pie chart for", key)
-    )
-  cat('</div>\n')
-  curr = rbind(
-    curr, 
-    data.frame(
-      Activity= "Total", 
-      Time = sum(curr$Time), 
-      Percent = sum(curr$Percent), 
-      PercentExp = sum(curr$PercentExp)
-      )
-    )
-  cat('<div class="column" width="30%">\n')
-  print(kable(curr,  row.names = FALSE, "html") %>% 
-          kable_styling("condensed", full_width=F))
-  cat('</div>\n')
+## Spent time per person
 
-  # Presence
-  curr = ret[ret$Activity %in% presence, ]
-  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
-  cat('<div class="column" width="70%">\n')
-  pie(
-    curr$Time, 
-    labels=curr$Activity, 
-    main=paste("Presence Time pie chart for", key)
-    )
-  cat('</div>\n')
-  curr = rbind(
-    curr, 
-    data.frame(Activity= "Total", Time = sum(curr$Time), 
-               Percent = sum(curr$Percent))
-    )
-  cat('<div class="column" width="30%">\n')
-  print(kable(curr, row.names = FALSE, "html") %>% 
-          kable_styling("condensed", full_width=F))
-  cat('</div>\n')
+Summary of time logging for the period `{python} myparams["start_date"].strftime("%Y-%m-%d")` to `{python} myparams["end_date"].strftime("%Y-%m-%d")`.
 
-  # output
-  curr = ret[!ret$Activity %in% c(output, "Absence"),]
-  curr=rbind(
-    curr, 
-    data.frame(
-      Activity="Output", 
-      Time = sum(ret[ret$Activity %in% output, "Time"])
-      )
-    )
-  curr$Percent = round(curr$Time/sum(curr$Time) * 100, 2)
-  cat('<div class="column" width="70%">\n')
-  pie(
-    curr$Time, 
-    labels=curr$Activity, 
-    main=paste("Output pie chart for", key)
-    )
-  cat('</div>\n')
-  curr = rbind(
-    curr, 
-    data.frame(Activity= "Total", Time = sum(curr$Time), 
-               Percent = sum(curr$Percent) )
-    )
-  cat('<div class="column" width="30%">\n')
-  print(kable(curr, row.names = FALSE, "html") %>% 
-          kable_styling("condensed", full_width=F))
-  cat('</div>\n')
-  cat('</div>\n')
+Total time `{python} diff.days` days. Estimated expected work time for that period is `{python} round(approxJobHours)` hours, but not accounting for red days in that interval. 
 
-  # Full Time Log distributed over months  
-  cat(paste(
-    "### Full Time Log distributed over activities and months for", 
-    key,"\n"
-    ))
-  print(kable(raw, row.names = FALSE, "html") %>% 
-          kable_styling("condensed", font_size = 10, full_width=F))
+Expected hours per month is around `{python} round(approxJobYear/12)`.
 
-  # Full Time Log distributed over issues
-  raw = data.frame(py$allTimeLogIssue[key], 
-                   stringsAsFactors=TRUE, 
-                   check.names = FALSE)
-  names(raw) = sapply(names(raw), function(x) sub(paste0(key, "."), "", x))
-  cat(paste("### Full Time Log distributed over issues for", key,"\n"))
-  print(kable(raw, row.names = TRUE, "html") %>% 
-          kable_styling("condensed", font_size = 10, full_width=F))
 
-  # Warn about activities not in the current correspondence table
-  for(i in unique(raw$Activity)){
-    if(!i %in% redmine){
-      print(paste0("New activity, ", i, ", found; please include in variable 'corr'\n"))
-    }
-  }
-}
+
+::: {.panel-tabset}
+
+```{python}
+#| output: asis
+#| echo: false
+
+time_by_project = {}
+
+for user in myparams['users']:
+    display(Markdown(f"#### {user}"))
+
+
+    raw = allTimeLog[user].copy()
+    # add info on absence/presence and output as columns
+    raw["Presence"] = raw.Activity.isin(presence)
+    raw["Output"] = raw.Activity.isin(output)
+    raw.sort_values(['Presence','Output','Activity'], ascending=False, inplace=True)
+
+    # Calculate proportion absence 
+    abs = raw.groupby(["Presence","Output"]).sum()
+    abs.index = ["Absent","Internal", "Output"]  
+  
+
+    # Proportion output within the present hours
+    pres = raw.loc[raw.Presence]
+    outp = pres.groupby('Output')['Total time'].sum()
+    outp.index = ['Internal','Output']
+    outp = outp.reindex(index=outp.index[::-1])
+
+    # time grouped by project instead of activity
+    df = allTimeLogIssue[user].copy()
+    df.Project[df.Project.str.startswith("Round ")] = "Support - PeerReview"
+    df.Project[df.Project == "National Bioinformatics Support"] = "Support = UserFee"
+    df.Project[df.Tracker == "Partner Project"] = "Support - PartnerProject"
+    time_by_project[user] = df.groupby("Project").sum()["Total time"]
+
+    # plot
+    size = 0.3
+#    fig, axs = plt.subplots(1, 2, figsize=(10,6) ,constrained_layout=True)
+    fig = plt.figure(figsize=(8, 6), constrained_layout=True)
+    gs = gridspec.GridSpec(3, 4)
+    axs = [0,0,0,0]
+    axs[0] = fig.add_subplot(gs[0, 0])
+    axs[1] = fig.add_subplot(gs[:2, 2:])
+    axs[2] = fig.add_subplot(gs[2, 0])
+    axs[3] = fig.add_subplot(gs[2, 2:])
+
+    # time per month.
+    abs2 = abs.filter(regex='20').transpose()
+    abs2.plot.bar(stacked=True, title="Time per month", ax=axs[0], color = ["gray","lightblue","green"])
+    axs[0].get_legend().remove()
+    axs[0].axhline(y=round(approxJobYear/12))
+
+    # total time pie 
+    total_time = abs["Total time"].sum()
+    abs_time = abs.loc["Absent"]["Total time"]
+    display(Markdown(f" "))
+    display(Markdown(f"{user} has reported {round(total_time)} and worked {round(total_time - abs_time)} hours"))
+    display(Markdown(f" "))
+    display(Markdown(f"Reported time is {round((total_time - abs_time)/total_time * 100,2)}% of expected"))
+
+    # activities
+    axs[2].pie(abs["Total time"], labels=abs.index, autopct='%1.1f%%', colors = ["gray","lightblue","green"])
+    axs[2].title.set_text("Total time") 
+    # activities
+    axs[1].pie(pres['Total time'], labels=pres['Activity'],  
+      autopct='%1.1f%%', radius=1,  
+      pctdistance=(1-size/2), wedgeprops={'width':size}, 
+      shadow=True, startangle=0)
+    axs[1].pie(x=outp, labels=outp.index,
+      autopct='%.1f%%', shadow=True, 
+      startangle=0,  radius=0.5,
+      labeldistance=0.75, colors=['green','lightblue'])
+    axs[1].title.set_text("Activities within working hours")  
+
+    # projects
+    axs[3].pie(time_by_project[user], labels=time_by_project[user].index, autopct='%.1f%%',shadow=True)
+    axs[3].title.set_text("Projects")  
+
+
+    display(plt.gcf())
+    plt.close()
+    display(Markdown(f" "))
+
+    # show the tables 
+    display(Markdown(f"Full Time Log distributed over activities and months for {user}"))
+    df = raw[raw.columns[:-2]]
+    df = df[df.columns[1:]]
+    df.loc["Total"] = df.sum(axis=0)
+    df.fillna(0, inplace=True)
+    styled = df.reset_index().style.set_properties(subset=["index"], **{
+    "min-width": "400px" }) # fix with of index column. 
+    display(styled.hide())
+
+    display(Markdown(f"Full Time Log distributed over issues for {user}"))
+    display(allTimeLogIssue[user])
+    display(Markdown(f"Total time is {allTimeLogIssue[user]["Total time"].sum()}"))
+    display(Markdown(f" "))
+
+
+
+
 ```
-</div>
+
+
+:::
+
+
+Project vs Activity - Should be similar, but many reports e.g. "Admin" in Training projects etc. 
+
+
+For Partner project - Project is "National Bioinformatics Support" but tracker is Partner project. For the other types of projects tracker is Support or Consultation. 
+
+Absence - VAB, Vacation etc falls under "Absence". Wellness hour under "Infrastructure"
+
+
+## Spent time all
+
+
+### Per project
+Based on the hours split by project, e.g. not the reported activity.
+
+```{python}
+
+time_project = pd.DataFrame(time_by_project)
+time_project.fillna(0, inplace=True)
+
+time_project["Total time"] = time_project.sum(axis=1)
+
+fig, axs = plt.subplots(1, 2, figsize=(10,6),constrained_layout=True)
+
+time_project["Total time"].plot.bar(ax = axs[0])
+axs[0].title.set_text("Total hours per project")
+
+for i in range(time_project.shape[0]):
+  axs[0].text(i, time_project["Total time"][i], round(time_project["Total time"][i])) 
+
+time_project["Total time"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+```
+
+### Per activity
+Based on the reported activity.
+
+```{python}
+
+time_by_act = [df["Total time"] for df in allTimeLog.values()]
+time_act = pd.DataFrame(time_by_act).transpose()
+time_act.fillna(0, inplace=True)
+time_act["Sum"] = time_act.sum(axis=1)
+
+
+fig, axs = plt.subplots(1, 2, figsize=(10,6),constrained_layout=True)
+
+time_act["Sum"].plot.bar(ax = axs[0])
+axs[0].title.set_text("Total hours per activity")
+
+for i in range(time_project.shape[0]):
+  axs[0].text(i, time_act["Sum"][i], round(time_act["Sum"][i]))  
+
+time_act["Sum"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+```
+
+
+
+```{python}
+#|  eval: false
+#| 
+user = myparams['users'][12]
+df = allTimeLogIssue[user].copy()
+df.Project[df.Project.str.startswith("Round ")] = "Peer review"
+df.Project[df.Project == "National Bioinformatics Support"] = "User fee"
+df.Project[df.tracker == "Partner Project"] = "Partner project"
+df["Activity2"] = df.Tracker + "-" + df.Project
+
+
+time_by_project = {}
+time_by_project[user] = df.groupby("Project").sum()["Total time"]
+plt.pie(time_by_project[user], labels=time_by_project[user].index)
+
+
+time_entries = redmine.fetch_time_entries_by_user_id(user_id, myparams['start_date'], myparams['end_date'])
+entry = time_entries[0]
+act = entry['activity']['name']
+
+issue_id = entry['issue']['id']
+issue = redmine.fetch_issue(issue_id)
+tracker = get_field(issue, 'tracker')
+```
+
+
