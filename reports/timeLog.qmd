@@ -125,7 +125,7 @@ userNameToId = redmine.create_user_name_to_id(project_id)
 
 pyparams = r.myparams # r.myparams["users"] appears to be immutable in this chunk
 # Handle empty user list
-if(pyparams["users"] == None):
+if("users" not in pyparams or pyparams["users"] == None):
   pyparams["users"] = list(userNameToId.keys())
 # Handle single use in list
 if(isinstance(pyparams["users"], list) == False):

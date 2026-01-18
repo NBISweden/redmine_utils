@@ -480,17 +480,25 @@ class Redmine_server_api:
         return activity_report
     
     def report_time_entries_by_issue(self, user_id, start_date, end_data):
-      
         time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         issue_report = {}
+        missingIssue = False
         for entry in time_entries:
-            issue_id = entry['issue']['id']
             project = entry['project']['name']
             hours = entry['hours']
+            if 'issue' in entry:
+              issue_id = entry['issue']['id']
+            else:
+              issue_id = "{}_MissingIssue".format(project)
+              missingIssue = True
             if issue_id not in issue_report:
-                issue = self.fetch_issue(issue_id)
-                tracker = get_field(issue, 'tracker')
-                name = get_field(issue, 'subject')
+                if(missingIssue == False):
+                  issue = self.fetch_issue(issue_id)
+                  tracker = get_field(issue, 'tracker')
+                  name = get_field(issue, 'subject')
+                else: 
+                  tracker = "NA"
+                  name = "NA"
                 issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Total time' : 0 }  # Initialize if not exist
             issue_report[issue_id]['Total time'] += hours
 
