@@ -13,7 +13,11 @@ python3 script_send_out_user_survey_to_closed_projects.py -c config.yaml -s 2025
 
 To keep track of start and end points.
 ```bash
-python3 script_send_out_user_survey_to_closed_projects.py -c config.yaml -s 2025-03-04 -e 2025-10-12
+# for biif
+python3 scripts/script_send_out_user_survey_to_closed_projects.py -d -v -c config.yaml -n "BioImage Informatics" -i 8034,8000,7871,8076,7632,7837,6797,6763,7402,7649,8027,7629,7185
+
+# for nat.bioinfo.supp and long-term
+python3 script_send_out_user_survey_to_closed_projects.py -c config.yaml -s 2025-10-12 -e 2026-03-18
 ```
 
 ### TODO
