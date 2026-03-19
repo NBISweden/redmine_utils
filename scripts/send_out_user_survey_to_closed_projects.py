@@ -106,18 +106,30 @@ else:
     for redmine_project_id in redmine_project_ids:
         logger.debug(f'Project ID: {redmine_project_id}')
 #        issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
-        issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 5 = Closed, tracker_id=3 (Support)
-        issues += redmine.get_all_project_issues(redmine_project_id, status_id=9, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 9 = Output pending, tracker_id=3 (Support)
+        issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3', 'include': 'relations'}) # status_id 5 = Closed, tracker_id=3 (Support)
+        issues += redmine.get_all_project_issues(redmine_project_id, status_id=9, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3', 'include': 'relations'}) # status_id 9 = Output pending, tracker_id=3 (Support)
     issues_by_id = { issue['id']: issue for issue in issues }
 
     # go through all issues with status resolved and check if they were resolved in the requested interval
-    logger.info('Filtering issues closed or output pending in the requested interval')
+    logger.info('Keeping only non-DM issues that were resolved or output pending in the requested interval')
     resolved_issues = []
     found = False
     for issue in issues:
 
+        issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
+
         if issue['subject'].startswith('[DM]'):
-            logger.debug(f'Skipping issue {issue["id"]} as it is a DM issue')
+            logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as it is a DM issue ({issue_url})')
+            continue
+
+        # remove issues that have a preceding issue
+        has_preceding_issue = False
+        for related_issue in issue.get('relations'):
+            if related_issue['relation_type'] == 'precedes':
+                logger.debug(f"Skipping issue {issue['project']['name']} : {issue['id']} as it has a preceding issue {related_issue['issue_id']} ({issue_url})")
+                has_preceding_issue = True
+                break
+        if has_preceding_issue:
             continue
 
         # fetch the journal entries for the issue
@@ -131,13 +143,14 @@ else:
                     if change_date >= datetime.datetime.strptime(args.start_date, '%Y-%m-%d').date() and change_date <= datetime.datetime.strptime(args.end_date, '%Y-%m-%d').date():
                         found = True # set to break the outer loop as well
                         resolved_issues.append(issue)
-                        logger.debug(f"Issue {issue['id']} resolved on {change_date}")
+                        logger.debug(f"Issue {issue['project']['name']} : {issue['id']} resolved on {change_date} ({issue_url})")
                     break
             # break the outer loop if close/resolve found
             if found:
                 found = False
                 break
-        
+
+
 # print out the PI email and url to the issue
 if args.verbose:
     logger.debug('Issues to send survey for:')
@@ -162,7 +175,7 @@ for issue in resolved_issues:
     # skip issues that have custom filed 22 (send survey) set to 0
     send_survey = custom_fields.get(22) # custom field 22 = send survey
     if send_survey != '1':
-        logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as send survey custom field is not set to 1 ({ussue_url})')
+        logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as send survey custom field is not set to 1 ({issue_url})')
         continue
 
     pi_email = custom_fields.get(18) # custom field 18 = PI email
