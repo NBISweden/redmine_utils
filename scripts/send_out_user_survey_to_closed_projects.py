@@ -105,13 +105,13 @@ else:
     issues = []
     for redmine_project_id in redmine_project_ids:
         logger.debug(f'Project ID: {redmine_project_id}')
-        issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
+#        issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
         issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 5 = Closed, tracker_id=3 (Support)
         issues += redmine.get_all_project_issues(redmine_project_id, status_id=9, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 9 = Output pending, tracker_id=3 (Support)
     issues_by_id = { issue['id']: issue for issue in issues }
 
     # go through all issues with status resolved and check if they were resolved in the requested interval
-    logger.info('Filtering issues closed or resolved in the requested interval')
+    logger.info('Filtering issues closed or output pending in the requested interval')
     resolved_issues = []
     found = False
     for issue in issues:
@@ -126,7 +126,7 @@ else:
         # find the journal entry that changed the status to resolved or closed
         for journal in reversed(journals):
             for detail in journal['details']:
-                if detail['name'] == 'status_id' and detail['new_value'] in ['3', '5']:  # 3 = resolved, 5 = closed
+                if detail['name'] == 'status_id' and detail['new_value'] in ['9', '5']:  # 3 = resolved, 5 = closed, 9 = output pending
                     change_date = datetime.datetime.strptime(journal['created_on'], '%Y-%m-%dT%H:%M:%SZ').date()
                     if change_date >= datetime.datetime.strptime(args.start_date, '%Y-%m-%d').date() and change_date <= datetime.datetime.strptime(args.end_date, '%Y-%m-%d').date():
                         found = True # set to break the outer loop as well
