@@ -107,6 +107,7 @@ else:
         logger.debug(f'Project ID: {redmine_project_id}')
         issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
         issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 5 = Closed, tracker_id=3 (Support)
+        issues += redmine.get_all_project_issues(redmine_project_id, status_id=9, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 9 = Output pending, tracker_id=3 (Support)
     issues_by_id = { issue['id']: issue for issue in issues }
 
     # go through all issues with status resolved and check if they were resolved in the requested interval
@@ -174,7 +175,7 @@ for issue in resolved_issues:
 
     # send email
     email_subject = f"NBIS{f" {args.nbis_subunit_name}" if args.nbis_subunit_name else ""} User Survey - Feedback for \'{issue['subject']}'"
-    logger.debug(f'Sending email to {pi_email} for issue {issue["id"]}')
+    logger.debug(f'Preparing to send email to {pi_email} for issue {issue["id"]}')
     logger.debug(f'Email subject: {email_subject}')
     logger.debug(f'Email body:\n{email_body}')
     msg = MIMEText(email_body)
