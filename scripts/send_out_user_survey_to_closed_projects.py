@@ -157,17 +157,17 @@ for issue in resolved_issues:
 
     # get all custom fields as a dict
     custom_fields = { cf['id']: cf['value'] for cf in issue.get('custom_fields', []) } 
+    issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
 
     # skip issues that have custom filed 22 (send survey) set to 0
     send_survey = custom_fields.get(22) # custom field 22 = send survey
     if send_survey != '1':
-        logger.debug(f'Skipping issue {issue["id"]} as send survey custom field is not set to 1')
+        logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as send survey custom field is not set to 1 ({ussue_url})')
         continue
 
     pi_email = custom_fields.get(18) # custom field 18 = PI email
-    issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
     if not pi_email:
-        logger.warning(f'No PI email found for issue {issue["id"]}, skipping ({issue_url})')
+        logger.warning(f'No PI email found for issue {issue['project']['name']} : {issue["id"]}, skipping ({issue_url})')
         continue
 
     # prepare email body
@@ -187,11 +187,11 @@ for issue in resolved_issues:
         server.starttls()
         server.login(config['smtp_user'], config['smtp_password'])
         if args.dry_run:
-            logger.info(f'DRY RUN: Email not sent to {pi_email} for issue {issue["id"]}')
+            logger.info(f'DRY RUN: Email not sent to {pi_email} for issue {issue['project']['name']} : {issue["id"]} ({issue_url})')
         else:
             server.sendmail(msg['From'], [msg['To']], msg.as_string())
-            logger.info(f'Email sent to {pi_email} for issue {issue["id"]}')
-            send_log_file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\t{pi_email}\t{issue_url}\n")
+            logger.info(f'Email sent to {pi_email} for issue {issue['project']['name']} : {issue["id"]} ({issue_url})')
+            send_log_file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\t{pi_email}\t{issue_url}\t{issue['project']['name']}\n")
 
     # update the issue description to add a note about survey sent, and disable send survey custom field (cf_22) to 0
     if not args.dry_run:
@@ -200,9 +200,9 @@ for issue in resolved_issues:
         redmine.update_issue_description(issue, f"{issue['description']}\n\nSurvey email sent to {pi_email} on {datetime.datetime.now().strftime('%Y-%m-%d')}.")
         logger.debug(f'Disabling send survey custom field for issue {issue["id"]}.')
         redmine.update_issue_custom_field(issue, 22, '0')  # custom field 22 = send survey
-        logger.info(f'Issue {issue["id"]} updated to add note about survey sent and disable send survey custom field.')
-    else:
-        logger.info(f'DRY RUN: Issue {issue["id"]} not updated to add note about survey sent or disable send survey custom field.')
+        logger.info(f'Issue {issue['project']['name']} : {issue["id"]} updated to add note about survey sent and disable send survey custom field.')
+#    else:
+#        logger.info(f'DRY RUN: Issue {issue['project']['name']} : {issue["id"]} not updated to add note about survey sent or disable send survey custom field.')
 
     #sys.exit(0)
     # wait for a bit to avoid overwhelming the email server
