@@ -212,6 +212,59 @@ class Redmine_server_api:
     
     
     
+    def find_user_id_from_name(self, user_name):
+      """
+      Get the user_id corresponding to user_name by scanning project memberships.
+
+      Iterates through all projects until a member whose display name matches
+      user_name is found. This approach works without admin privileges, which
+      are required by the /users.json endpoint.
+
+      Args:
+          user_name (str): The display name of the user (e.g. 'Jane Doe').
+
+      Returns:
+          int: The user ID if found, or None if not found in any project.
+      """
+      projects = self.get_all_projects()
+      seen_project_ids = set()
+      for project in projects:
+          pid = project['id']
+          if pid in seen_project_ids:
+              continue
+          seen_project_ids.add(pid)
+          name_to_id = self.create_user_name_to_id(pid)
+          if name_to_id is None:
+              continue
+          if user_name in name_to_id and name_to_id[user_name] is not None:
+              return name_to_id[user_name]
+
+      print(f"User '{user_name}' not found in any project membership.")
+      return None
+
+
+    def fetch_time_entries_by_user_name(self, user_name, start_date, end_date):
+      """
+      Fetch all time entries for a user identified by display name.
+
+      Resolves the name to a user ID via find_user_id_from_name, then
+      delegates to fetch_time_entries_by_user_id.
+
+      Args:
+          user_name  (str): Display name of the user (e.g. 'Jane Doe').
+          start_date (str): Start date in ISO format, e.g. '2024-01-01'.
+          end_date   (str): End date in ISO format,   e.g. '2024-12-31'.
+
+      Returns:
+          list: Time entry dicts, same format as fetch_time_entries_by_user_id.
+                Returns an empty list if the user cannot be resolved.
+      """
+      user_id = self.find_user_id_from_name(user_name)
+      if user_id is None:
+          return []
+      return self.fetch_time_entries_by_user_id(user_id, start_date, end_date)
+
+
     def get_all_project_issues(self, project_id, status_id = 'open', extra_params = {}):
       """
       Retrieve all issues in a project from the Redmine API by paginating through the results.
