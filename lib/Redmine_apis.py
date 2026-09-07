@@ -549,10 +549,12 @@ class Redmine_server_api:
                   issue = self.fetch_issue(issue_id)
                   tracker = get_field(issue, 'tracker')
                   name = get_field(issue, 'subject')
+                  status = get_field(issue, 'status')
                 else: 
                   tracker = "NA"
                   name = "NA"
-                issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Total time' : 0 }  # Initialize if not exist
+                  status = "NA"
+                issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Status' : status, 'Total time' : 0 }  # Initialize if not exist
             issue_report[issue_id]['Total time'] += hours
 
         return issue_report
