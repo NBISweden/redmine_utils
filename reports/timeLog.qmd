@@ -161,6 +161,8 @@ for user in pyparams["users"]:
   else:
     deletedUsers.append(user)
 pyparams["users"] = [ a for a in pyparams["users"]  if a not in deletedUsers ]
+if(deletedUsers):
+  print("WARNING: No timeLog entries for the following users: {}".format(", ".join(deletedUsers)))
 r.myparams = pyparams # ...but you are allowed to change the whole of r.myparams -- strange!
 pyparams = None # clear in case this duplicate is really big
 ```
@@ -288,7 +290,7 @@ for(key in myparams$users){
   # Warn about activities not in the current correspondence table
   for(i in unique(raw$Activity)){
     if(!i %in% redmine){
-      print(paste0("New activity, ", i, ", found; please include in variable 'corr'\n"))
+      print(paste0("WARNING: New activity, ", i, ", found; please include in variable 'corr'\n"))
     }
   }
 }
