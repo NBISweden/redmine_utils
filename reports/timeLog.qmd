@@ -192,11 +192,11 @@ project_id = redmine.find_project_id_from_name(project_name)
 userNameToId = redmine.create_user_name_to_id(project_id)
 
 # Handle empty user list
-if(myparams["users"] == None):
+if("users" not in myparams or myparams["users"] == None):
   myparams["users"] = list(userNameToId.keys())
 # Handle single use in list
 if(isinstance(myparams["users"], list) == False):
-  myparams["users"] = [ pyparams["users"] ]
+  myparams["users"] = [ myparams["users"] ]
 
 allTimeLog = {}
 allTimeLogIssue = {}
