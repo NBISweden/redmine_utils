@@ -164,6 +164,9 @@ if args.verbose:
 if not args.dry_run:
     send_log_file = open(f"send_log.{start_time}.log", 'w')
 
+    # write command to log file
+    send_log_file.write(f"Command: {' '.join(sys.argv)}\n")
+
 # send out the survey emails
 logger.info('Starting to send out survey emails')
 for issue in resolved_issues:
