@@ -4,16 +4,18 @@ author: "NBIS Support Manager group"
 date: today
 always_allow_html: true
 format: 
-  confluence-html:
+  html:
     self-contained: true
     page-layout: full
     fig-width: 10
     fig-height: 6    
+    df-print: default
 execute:
   freeze: false
   echo: false
   warning: false
 ---
+
 
 ```{python}
 #| label: params
@@ -49,23 +51,27 @@ with open(params_file, 'r') as stream:
 ```{python}
 #| label: activities
 
-
 # Define how to group Redmine Activities
 corr = {
     "Absence": ["Absence (Vacation/VAB/Other)"],           # Absence
-    "Administration": [ "Administration"],                 # Administration
-    "Internal NBIS": [ "Internal NBIS"],                   # Internal NBIS
     "Coordination": ["NBIS Management", "Management"],        # Coordination
     "Community": ["Development", "Internal consultation", "Outreach"],     # Community
-    "Professional Development": ["Professional Development"], # Professional development
     "Support": ["Consultation", "Support"],  # Support
-    "Training": ["Training"]                                                         # Training
+    "Training": ["Training"],                                                         # Training
+    "Administration": [ "Administration"],                 # Administration
+    "Internal NBIS": [ "Internal NBIS"],                   # Internal NBIS
+    "Professional Development": ["Professional Development"] # Professional development
+
 }
 
 
-presence = ["Administration", "Internal NBIS", "Coordination", "Community", "Consultation", "Professional Development", "Support", "Training"]
-output = ["Consultation", "Coordination","Community", "Support", "Training"]
-#output = ["Consultation","Community", "Support", "Training"]
+presence = ["Administration", "Internal NBIS", "Coordination", "Community", "Professional Development", "Support", "Training"]
+output = ["Coordination","Community", "Support", "Training"]
+internal = [x for x in presence if x not in set(output)]
+
+# define all tasks that are prescence/output
+presence_tasks = sum([corr[x] for x in presence],[])
+output_tasks = sum([corr[x] for x in output],[])
 
 approxJobYear = 1983 #hours total hours in a year excluding red working days (but not vacation)?
 approxWorkYear = 1700 #hours NOT USED??
@@ -87,87 +93,28 @@ corr_text = {}
 for k in corr.keys():
   corr_text[k] = ', '.join(corr[k])
 
-df = pd.DataFrame.from_dict(corr_text, orient='index', columns=['Redmine'])
-
-display(df)
-
+categories = pd.DataFrame.from_dict(corr_text, orient='index', columns=['Redmine'])
+categories["Presence"] = categories.index.isin(presence)
+categories["Output"] = categories.index.isin(output)
+display(categories)
 
 
 ```
 
-```{python}
-#|  eval: false
+The working time is divided into 3 main categories:
 
-#display(Markdown(df.to_markdown(index = False)))
-df
-```
+* **Absence** - any time not spent on actual work. Meant only to give an overview to visualize reduced work time etc. -- not to be used to stress experts. Notice that _absence_ include several subcategories, vacation, VAB, Sick leave, Parental leave, etc, but that not all experts are reporting this. 
 
-```{python}
-#|  eval: false
-from IPython.display import HTML
-print("display(HTML(df.to_html()))")
-display(HTML(df.to_html()))
-```
+* **Output** - time spent on the categories that we defined as output/productive in the table above, e.g. output = (`{python} ", ".join(output)`).
 
-```{python}
-#|  eval: false
-from tabulate import tabulate
-print("display(tabulate(df))")
-display(tabulate(df))
+* **Internal** - time spent on other things, e.g. internal = (`{python} ", ".join(internal)`).
 
-```
-
-```{python}
-#|  eval: false
-#|  tbl-colwidths: [20,80]
-print("display(df)")
-display(df)
-```
-
-
-
-
-Three different pie-charts/table approaches are shown.
-
-1. **Presence/absence** Meant only to give an overview to visualize reduced work time etc. -- not to be used to stress experts.
-Notice that _absence_ include several subcategories, vacation, VAB, Sick leave, Parental leave, etc, but that reporting these are optional in LTS.
-The PercentExp denotes percent of approximate expected yearly work time, here this is set to `r approxJobYear`. 
-
-2. **Distribution of presence time on different categories** (see table).
-
-3. **Distribution of presence time on _output_** Output = (`{python} ", ".join(output)`).
-
-(kudos to Henrik)
+The expected yearly work time (excluding red days), is set to `{python} approxJobYear`. Hence estimated time per day/month is just a proportion of that time, not accounting for the amount of red days in different months.
 
 <div class=pgbr>
 
 
-```{python}
-#| eval: false
-# possibly add to Redmine_apis.py later
 
-
-
-def report_time_entries_by_activity_and_month_support_issues(rm, user_id, start_date, end_data):
-      
-        time_entries = rm.fetch_time_entries_by_user_id(user_id, start_date, end_data)
-        activity_report = {}
-        for entry in time_entries:
-            activity = entry['activity']['name']
-            spent_date = datetime.datetime.strptime(entry['spent_on'], '%Y-%m-%d').date()
-            month = f"{spent_date.year}-{spent_date.month}"
-            hours = entry['hours']
-            if activity not in activity_report:
-                activity_report[activity] = { 'Total time' : 0 }  # Initialize if not exist
-            
-            if month not in activity_report[activity]:
-                activity_report[activity][month] = 0  # Initialize month if not exist
-            
-            activity_report[activity][month] += hours
-            activity_report[activity]['Total time'] += hours
-            
-        return activity_report
-```
 
 ```{python}
 #| label: redmine
@@ -194,10 +141,12 @@ userNameToId = redmine.create_user_name_to_id(project_id)
 # Handle empty user list
 if(myparams["users"] == None):
   myparams["users"] = list(userNameToId.keys())
-# Handle single use in list
+# Handle single user in list
 if(isinstance(myparams["users"], list) == False):
   myparams["users"] = [ pyparams["users"] ]
 
+
+# fetch data per user from redmine.
 allTimeLog = {}
 allTimeLogIssue = {}
 deletedUsers = []
@@ -234,13 +183,22 @@ for user in myparams["users"]:
 
 ## Spent time per person
 
+
 Summary of time logging for the period `{python} myparams["start_date"].strftime("%Y-%m-%d")` to `{python} myparams["end_date"].strftime("%Y-%m-%d")`.
 
-Total time `{python} diff.days` days. Estimated expected work time for that period is `{python} round(approxJobHours)` hours, but not accounting for red days in that interval. 
-
-Expected hours per month is around `{python} round(approxJobYear/12)`.
 
 
+The total time for the interval is `{python} diff.days` days. Estimated expected work time for that period is `{python} round(approxJobHours)` hours (not accounting for red days in that interval). 
+
+For each staff member we display:
+
+**Top-left** Logged time per month divided on the 3 categories, `absence`, `internal`, `output`. This should approximately sum up to `{python} round(approxJobYear/12)` per month (black line).
+
+**Bottom-left** Same data but summed up for the whole period and displayed as a pie chart.
+
+**Top-right** Displays how the `presence` hours are used, with the inner circle showing the proportion `internal` vs `output` and the outer circle how the time is divided on different categories.
+
+**Bottom-right** shows how the project time is divided based on the redmine "Project" categories for each issue. 
 
 ::: {.panel-tabset}
 
@@ -256,14 +214,22 @@ for user in myparams['users']:
 
     raw = allTimeLog[user].copy()
     # add info on absence/presence and output as columns
-    raw["Presence"] = raw.Activity.isin(presence)
-    raw["Output"] = raw.Activity.isin(output)
+    raw["Presence"] = raw.Activity.isin(presence_tasks)
+    raw["Output"] = raw.Activity.isin(output_tasks)
     raw.sort_values(['Presence','Output','Activity'], ascending=False, inplace=True)
 
     # Calculate proportion absence 
     abs = raw.groupby(["Presence","Output"]).sum()
+
+    # if the person only has absence reported, the plotting will not work. 
+    # Just display what is reported and continue.
+    if abs.shape[0] != 3:
+      display(Markdown(f" "))
+      display(Markdown(f"The user does not have all types of time logged "))
+      display(abs)
+      continue
+
     abs.index = ["Absent","Internal", "Output"]  
-  
 
     # Proportion output within the present hours
     pres = raw.loc[raw.Presence]
@@ -278,10 +244,10 @@ for user in myparams['users']:
     df.Project[df.Tracker == "Partner Project"] = "Support - PartnerProject"
     time_by_project[user] = df.groupby("Project").sum()["Total time"]
 
-    # plot
+    # create plot
     size = 0.3
 #    fig, axs = plt.subplots(1, 2, figsize=(10,6) ,constrained_layout=True)
-    fig = plt.figure(figsize=(8, 6), constrained_layout=True)
+    fig = plt.figure(figsize=(12, 8), constrained_layout=True)
     gs = gridspec.GridSpec(3, 4)
     axs = [0,0,0,0]
     axs[0] = fig.add_subplot(gs[0, 0])
@@ -289,24 +255,23 @@ for user in myparams['users']:
     axs[2] = fig.add_subplot(gs[2, 0])
     axs[3] = fig.add_subplot(gs[2, 2:])
 
-    # time per month.
+    # barplot time per month.
     abs2 = abs.filter(regex='20').transpose()
     abs2.plot.bar(stacked=True, title="Time per month", ax=axs[0], color = ["gray","lightblue","green"])
     axs[0].get_legend().remove()
     axs[0].axhline(y=round(approxJobYear/12))
 
-    # total time pie 
+    # print total time    
     total_time = abs["Total time"].sum()
     abs_time = abs.loc["Absent"]["Total time"]
     display(Markdown(f" "))
-    display(Markdown(f"{user} has reported {round(total_time)} and worked {round(total_time - abs_time)} hours"))
-    display(Markdown(f" "))
-    display(Markdown(f"Reported time is {round((total_time - abs_time)/total_time * 100,2)}% of expected"))
+    display(Markdown(f"{user} has reported {round(total_time)} and worked {round(total_time - abs_time)} hours. Reported time is {round(total_time/approxJobHours * 100,1)}% of expected"))
 
-    # activities
+    # total time pie 
     axs[2].pie(abs["Total time"], labels=abs.index, autopct='%1.1f%%', colors = ["gray","lightblue","green"])
     axs[2].title.set_text("Total time") 
-    # activities
+
+    # activities double pie
     axs[1].pie(pres['Total time'], labels=pres['Activity'],  
       autopct='%1.1f%%', radius=1,  
       pctdistance=(1-size/2), wedgeprops={'width':size}, 
@@ -317,48 +282,38 @@ for user in myparams['users']:
       labeldistance=0.75, colors=['green','lightblue'])
     axs[1].title.set_text("Activities within working hours")  
 
-    # projects
+    # projects pie
     axs[3].pie(time_by_project[user], labels=time_by_project[user].index, autopct='%.1f%%',shadow=True)
     axs[3].title.set_text("Projects")  
-
 
     display(plt.gcf())
     plt.close()
     display(Markdown(f" "))
 
     # show the tables 
-    display(Markdown(f"Full Time Log distributed over activities and months for {user}"))
+    display(Markdown(f"Table with full Time Log distributed over activities and months for {user}:"))
     df = raw[raw.columns[:-2]]
     df = df[df.columns[1:]]
     df.loc["Total"] = df.sum(axis=0)
     df.fillna(0, inplace=True)
-    styled = df.reset_index().style.set_properties(subset=["index"], **{
-    "min-width": "400px" }) # fix with of index column. 
-    display(styled.hide())
+    display(df)
 
-    display(Markdown(f"Full Time Log distributed over issues for {user}"))
+    display(Markdown(f"Table with full Time Log distributed over issues for {user}:"))
     display(allTimeLogIssue[user])
     display(Markdown(f"Total time is {allTimeLogIssue[user]["Total time"].sum()}"))
     display(Markdown(f" "))
 
-
-
-
 ```
-
 
 :::
 
-
 Project vs Activity - Should be similar, but many reports e.g. "Admin" in Training projects etc. 
-
 
 For Partner project - Project is "National Bioinformatics Support" but tracker is Partner project. For the other types of projects tracker is Support or Consultation. 
 
 Absence - VAB, Vacation etc falls under "Absence". Wellness hour under "Infrastructure"
 
-
-## Spent time all
+## Spent time all team
 
 
 ### Per project
