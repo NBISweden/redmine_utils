@@ -208,9 +208,8 @@ For each staff member we display:
 
 time_by_project = {}
 
-for user in myparams['users']:
+for user in allTimeLog.keys():
     display(Markdown(f"#### {user}"))
-
 
     raw = allTimeLog[user].copy()
     # add info on absence/presence and output as columns
@@ -353,7 +352,7 @@ fig, axs = plt.subplots(1, 2, figsize=(10,6),constrained_layout=True)
 time_act["Sum"].plot.bar(ax = axs[0])
 axs[0].title.set_text("Total hours per activity")
 
-for i in range(time_project.shape[0]):
+for i in range(time_act.shape[0]):
   axs[0].text(i, time_act["Sum"][i], round(time_act["Sum"][i]))  
 
 time_act["Sum"].plot.pie(ax = axs[1], autopct='%1.1f%%')
@@ -363,13 +362,16 @@ time_act["Sum"].plot.pie(ax = axs[1], autopct='%1.1f%%')
 
 ```{python}
 #|  eval: false
-#| 
+
+### Split support project by track and count
+# has info in Project field or Tracker field. 
+
 user = myparams['users'][12]
 df = allTimeLogIssue[user].copy()
 df.Project[df.Project.str.startswith("Round ")] = "Peer review"
 df.Project[df.Project == "National Bioinformatics Support"] = "User fee"
-df.Project[df.tracker == "Partner Project"] = "Partner project"
-df["Activity2"] = df.Tracker + "-" + df.Project
+df.Project[df.Tracker == "Partner Project"] = "Partner project"
+#df["Activity2"] = df.Tracker + "-" + df.Project
 
 
 time_by_project = {}
