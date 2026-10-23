@@ -1,0 +1,7 @@
+  config_file: "../config.yaml" # the file with your Redmine addess and API key
+  users:
+   - "Åsa Björklund"
+  projects: ["Integrated Data Services - IDS", "Internal Projects", "Long-term Support", "National Bioinformatics Support"] 
+
+
+

@@ -114,8 +114,6 @@ The expected yearly work time (excluding red days), is set to `{python} approxJo
 <div class=pgbr>
 
 
-
-
 ```{python}
 #| label: redmine
 #| echo: false
@@ -169,7 +167,8 @@ for user in myparams["users"]:
       redmine.report_time_entries_by_issue(
         user_id, 
         myparams["start_date"], 
-        myparams["end_date"]
+        myparams["end_date"],
+        hours_ordered=True
         ), orient='index')
     allTimeLogIssue[user] =  userIssueTimeLog.sort_values(
       by=['Project', 'Tracker', 'Total time'],
@@ -319,6 +318,7 @@ Absence - VAB, Vacation etc falls under "Absence". Wellness hour under "Infrastr
 Based on the hours split by project, e.g. not the reported activity.
 
 ```{python}
+from adjustText import adjust_text
 
 time_project = pd.DataFrame(time_by_project)
 time_project.fillna(0, inplace=True)
@@ -333,7 +333,10 @@ axs[0].title.set_text("Total hours per project")
 for i in range(time_project.shape[0]):
   axs[0].text(i, time_project["Total time"][i], round(time_project["Total time"][i])) 
 
-time_project["Total time"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+#time_project["Total time"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+wedges, labels, percentages = axs[1].pie(time_project['Total time'], labels = time_project.index, autopct='%1.1f%%')
+_,_ = adjust_text(labels, arrowprops=dict(arrowstyle='-', color='red'))
+
 ```
 
 ### Per activity
@@ -355,37 +358,11 @@ axs[0].title.set_text("Total hours per activity")
 for i in range(time_act.shape[0]):
   axs[0].text(i, time_act["Sum"][i], round(time_act["Sum"][i]))  
 
-time_act["Sum"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+#time_act["Sum"].plot.pie(ax = axs[1], autopct='%1.1f%%')
+wedges, labels, percentages = axs[1].pie(time_act["Sum"], labels = time_act.index, autopct='%1.1f%%')
+_,_ = adjust_text(labels, arrowprops=dict(arrowstyle='-', color='red'))
+
 ```
 
-
-
-```{python}
-#|  eval: false
-
-### Split support project by track and count
-# has info in Project field or Tracker field. 
-
-user = myparams['users'][12]
-df = allTimeLogIssue[user].copy()
-df.Project[df.Project.str.startswith("Round ")] = "Peer review"
-df.Project[df.Project == "National Bioinformatics Support"] = "User fee"
-df.Project[df.Tracker == "Partner Project"] = "Partner project"
-#df["Activity2"] = df.Tracker + "-" + df.Project
-
-
-time_by_project = {}
-time_by_project[user] = df.groupby("Project").sum()["Total time"]
-plt.pie(time_by_project[user], labels=time_by_project[user].index)
-
-
-time_entries = redmine.fetch_time_entries_by_user_id(user_id, myparams['start_date'], myparams['end_date'])
-entry = time_entries[0]
-act = entry['activity']['name']
-
-issue_id = entry['issue']['id']
-issue = redmine.fetch_issue(issue_id)
-tracker = get_field(issue, 'tracker')
-```
 
 
