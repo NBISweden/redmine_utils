@@ -105,18 +105,31 @@ else:
     issues = []
     for redmine_project_id in redmine_project_ids:
         logger.debug(f'Project ID: {redmine_project_id}')
-        issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
-        issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'}) # status_id 5 = Closed, tracker_id=3 (Support)
+#        issues += redmine.get_all_project_issues(redmine_project_id, status_id=3, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3'})  # status_id 3 = Resolved, tracker_id=3 (Support)
+        issues += redmine.get_all_project_issues(redmine_project_id, status_id=5, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3', 'include': 'relations'}) # status_id 5 = Closed, tracker_id=3 (Support)
+        issues += redmine.get_all_project_issues(redmine_project_id, status_id=9, extra_params={'updated_on': f'>={args.start_date}', 'cf_22': '1', 'tracker_id': '3', 'include': 'relations'}) # status_id 9 = Output pending, tracker_id=3 (Support)
     issues_by_id = { issue['id']: issue for issue in issues }
 
     # go through all issues with status resolved and check if they were resolved in the requested interval
-    logger.info('Filtering issues closed or resolved in the requested interval')
+    logger.info('Keeping only non-DM issues that were resolved or output pending in the requested interval')
     resolved_issues = []
     found = False
     for issue in issues:
 
+        issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
+
         if issue['subject'].startswith('[DM]'):
-            logger.debug(f'Skipping issue {issue["id"]} as it is a DM issue')
+            logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as it is a DM issue ({issue_url})')
+            continue
+
+        # remove issues that have a preceding issue
+        has_preceding_issue = False
+        for related_issue in issue.get('relations'):
+            if related_issue['relation_type'] == 'precedes':
+                logger.debug(f"Skipping issue {issue['project']['name']} : {issue['id']} as it has a preceding issue {related_issue['issue_id']} ({issue_url})")
+                has_preceding_issue = True
+                break
+        if has_preceding_issue:
             continue
 
         # fetch the journal entries for the issue
@@ -125,18 +138,19 @@ else:
         # find the journal entry that changed the status to resolved or closed
         for journal in reversed(journals):
             for detail in journal['details']:
-                if detail['name'] == 'status_id' and detail['new_value'] in ['3', '5']:  # 3 = resolved, 5 = closed
+                if detail['name'] == 'status_id' and detail['new_value'] in ['9', '5']:  # 3 = resolved, 5 = closed, 9 = output pending
                     change_date = datetime.datetime.strptime(journal['created_on'], '%Y-%m-%dT%H:%M:%SZ').date()
                     if change_date >= datetime.datetime.strptime(args.start_date, '%Y-%m-%d').date() and change_date <= datetime.datetime.strptime(args.end_date, '%Y-%m-%d').date():
                         found = True # set to break the outer loop as well
                         resolved_issues.append(issue)
-                        logger.debug(f"Issue {issue['id']} resolved on {change_date}")
+                        logger.debug(f"Issue {issue['project']['name']} : {issue['id']} resolved on {change_date} ({issue_url})")
                     break
             # break the outer loop if close/resolve found
             if found:
                 found = False
                 break
-        
+
+
 # print out the PI email and url to the issue
 if args.verbose:
     logger.debug('Issues to send survey for:')
@@ -150,23 +164,26 @@ if args.verbose:
 if not args.dry_run:
     send_log_file = open(f"send_log.{start_time}.log", 'w')
 
+    # write command to log file
+    send_log_file.write(f"Command: {' '.join(sys.argv)}\n")
+
 # send out the survey emails
 logger.info('Starting to send out survey emails')
 for issue in resolved_issues:
 
     # get all custom fields as a dict
     custom_fields = { cf['id']: cf['value'] for cf in issue.get('custom_fields', []) } 
+    issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
 
     # skip issues that have custom filed 22 (send survey) set to 0
     send_survey = custom_fields.get(22) # custom field 22 = send survey
     if send_survey != '1':
-        logger.debug(f'Skipping issue {issue["id"]} as send survey custom field is not set to 1')
+        logger.debug(f'Skipping issue {issue['project']['name']} : {issue["id"]} as send survey custom field is not set to 1 ({issue_url})')
         continue
 
     pi_email = custom_fields.get(18) # custom field 18 = PI email
-    issue_url = f"{redmine.baseurl}/issues/{issue['id']}"
     if not pi_email:
-        logger.warning(f'No PI email found for issue {issue["id"]}, skipping ({issue_url})')
+        logger.warning(f'{issue['project']['name']} - {issue["id"]}: No PI email found, skipping ({issue_url})')
         continue
 
     # prepare email body
@@ -174,7 +191,7 @@ for issue in resolved_issues:
 
     # send email
     email_subject = f"NBIS{f" {args.nbis_subunit_name}" if args.nbis_subunit_name else ""} User Survey - Feedback for \'{issue['subject']}'"
-    logger.debug(f'Sending email to {pi_email} for issue {issue["id"]}')
+    logger.debug(f'Preparing to send email to {pi_email} for issue {issue["id"]}')
     logger.debug(f'Email subject: {email_subject}')
     logger.debug(f'Email body:\n{email_body}')
     msg = MIMEText(email_body)
@@ -186,11 +203,11 @@ for issue in resolved_issues:
         server.starttls()
         server.login(config['smtp_user'], config['smtp_password'])
         if args.dry_run:
-            logger.info(f'DRY RUN: Email not sent to {pi_email} for issue {issue["id"]}')
+            logger.info(f'DRY RUN: {issue['project']['name']} - {issue["id"]}: Email not sent to {pi_email} ({issue_url})')
         else:
             server.sendmail(msg['From'], [msg['To']], msg.as_string())
-            logger.info(f'Email sent to {pi_email} for issue {issue["id"]}')
-            send_log_file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\t{pi_email}\t{issue_url}\n")
+            logger.info(f'{issue['project']['name']} - {issue["id"]}: Email sent to {pi_email} ({issue_url})')
+            send_log_file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\t{issue['project']['name']} - {issue["id"]}\t{pi_email}\t{issue_url}\n")
 
     # update the issue description to add a note about survey sent, and disable send survey custom field (cf_22) to 0
     if not args.dry_run:
@@ -199,9 +216,9 @@ for issue in resolved_issues:
         redmine.update_issue_description(issue, f"{issue['description']}\n\nSurvey email sent to {pi_email} on {datetime.datetime.now().strftime('%Y-%m-%d')}.")
         logger.debug(f'Disabling send survey custom field for issue {issue["id"]}.')
         redmine.update_issue_custom_field(issue, 22, '0')  # custom field 22 = send survey
-        logger.info(f'Issue {issue["id"]} updated to add note about survey sent and disable send survey custom field.')
-    else:
-        logger.info(f'DRY RUN: Issue {issue["id"]} not updated to add note about survey sent or disable send survey custom field.')
+        logger.info(f'{issue['project']['name']} - {issue["id"]}: Added note about survey sent and disable send survey custom field.')
+#    else:
+#        logger.info(f'DRY RUN: Issue {issue['project']['name']} : {issue["id"]} not updated to add note about survey sent or disable send survey custom field.')
 
     #sys.exit(0)
     # wait for a bit to avoid overwhelming the email server

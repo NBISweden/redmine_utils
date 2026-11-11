@@ -8,7 +8,7 @@ format:
     page-layout: full
     standalone: true
 params:
-  config_file: config.yaml #.dist
+  config_file: ../config.yaml #.dist
   
 ---
 ```{r setup, include=FALSE}
@@ -36,7 +36,7 @@ reticulate::use_python(python_path, required=T )
 This is a table of all currently open NBIS Peer review (WABI) projects with selected fields given. It will be updated monthly (currently done by manually running a script -- we will try to automatise the update). 
 
 - It is possible to sort then table on any column -- click on the small arrow next to the column name to sort alphanumerically or reversly alphanumerically. 
-- *Unfortunately, I did not get filtering on column vals to work on confluence. You have to sort and scroll to get your projects☹️*
+- *Unfortunately, I did not get filtering on column vals to work on confluence. You have to sort and scroll to get your projects??????*
 
 NB! You can not do any edits or updates directly in this table as they would be over-written next time the table is updated. Do all edits directly in Redmine instead!
 
