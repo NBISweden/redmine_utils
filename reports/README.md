@@ -12,16 +12,26 @@ To run scripts in command-line, first do:
 
         pixi shell
 
-If you want to start your system's rstudio (i.e., not provided by pixi) from within the pixi workspace, do:
+To generate the reports, make sure to update the relevant config files, see below and then render the html with quarto like:
 
-        pixi run rstudio
+   	cd reports
+	quarto render timeLog.qmd
+	quarto render createLtsTable.qmd
+	quarto render coordinatorAdmin.qmd
+
+
+If you want to edit the reports, you need to use Rstudio, Xcode or similar.
+To launch Xcode, once the pixi shell is activated you just have to launch Xcode with:
+
+   	code &  
+
+To start your system's rstudio (i.e., not provided by pixi) from within the pixi workspace, do:
+
+        rstudio &
 
 NB! If this does not work directly, you might need to open the file *pixi.toml* in your text editor and change the 
 line `rstudio = "/Applications/RStudio.app/Contents/MacOS/RStudio"` to point to the location of your Rstudio installation. 
 
-#### NB! You might also need a conda installation on your system
-Some of the quarto-reports use R-reticulate, which apparently will look for a system conda installation. 
-This appears to be a known bug with pixi (sigh!). (A plan is to try to switch R-code in quarto docs to python)
 
 ## Content
 
@@ -31,8 +41,10 @@ with circle diagrams and tables. Can be run from within rstudio (see above) or w
 
 #### `timeLogParams.yaml.dist`
 Dummy template for the user-created file `timeLogParams.yaml`, with parameters for the `timeLog.qmd` script, 
-including a list of users to include tim logs for, the start and end dates of the period to show timelog ofr, 
-and a pointer to the config-file with Redmine address and api-key.
+including a list of users to include time logs for, the start and end dates of the period to show timelog for, 
+and a pointer to the config-file with Redmine address and api-key (`../config.yaml`).
+
+
 
 #### `createLtsTable.qmd`
 Creates the _Table of Peer Review (WABI) projects_ on the 
@@ -41,3 +53,9 @@ To publish table on Confluence, run from command line `quarto publish confluence
 Currently run monthly by Bengt S.
 
 
+#### `coordinatorAdmin.qmd`
+Creates a report for all projects where person X (specified in `coordinatorAdminParams.yaml`) is admin with to see what persons reported time in a project during the last month, last year and over all time. 
+
+
+#### `coordinatorAdmin.qmd.dist`
+Dummy template for the user-created file coordinatorAdminParams.yaml, with parameters for the coordinatorAdmin.qmd script
