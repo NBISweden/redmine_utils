@@ -210,6 +210,7 @@ def plot_time_entries_comprehensive_interactive(time_entries, issue_id=None, iss
     fig.show()
 
 
+
 def add_no_data_message(fig, row, col, message1,message2):
     """Add a 'No data available' message to a subplot."""
     fig.add_annotation(
@@ -373,15 +374,47 @@ for issue in coordinator_issues:
   hoursOrdered = dict([[x['name'], x['value']] for x in issue['custom_fields']])['Hours ordered']
   data = redmine.get_all_time_entries_for_issue(issue['id'])  
 
-  # first check if any time entries that are not "Support"
-  df = pd.DataFrame(data)
-  df['activity_name'] = [x['name'] for x in df['activity']]
+  # check if all persons reporting time are also in the list of "All assignees" 
+  assigned_to = issue['assigned_to']['name']
+  assignees = [ x['value'] for x in issue['custom_fields'] if x['name'] == 'All assignees'][0]
+  assignees = [int(x) for x in assignees]
+  ass_names = [name for name,idx in name2id.items() if idx in assignees] 
+  ass_names.append(assigned_to)
+  all_names = list(set([x['user']['name'] for x in data]))
+  missing = [n for n in all_names if n not in ass_names]
+
+  # check if any time entries that are not "Support", remove then from data, should not be counted towards total hours. 
+  wrong_activity = []
+  for i, entry in enumerate(data):
+    if entry['activity']['name'] != "Support":
+      wrong_activity.append([entry['user']['name'],entry['activity']['name'], entry['hours'], entry['spent_on']])
+      del data[i]
 
   plot_time_entries_comprehensive_interactive(data, issue_id=issueID, issue_name=issueName, total_ordered_hours=hoursOrdered)
 
+  #print missing assignees
+  if len(missing) > 0:
+    display(Markdown(f"People that reported time but are not among the assignees of the project: {", ".join(missing)}",))
+
+
+  wrong = pd.DataFrame()
+  if len(wrong_activity) > 0:
+    wrong = pd.DataFrame(wrong_activity, columns=["Person","Activity","Hours","Spent on"])
+    if myparams['error_time_limit'] != None:
+      limit = datetime.now().date() - timedelta(days=30.5*myparams['error_time_limit'])
+      wrong['Spent on'] = pd.to_datetime(wrong['Spent on'])
+      wrong = wrong[wrong['Spent on'].dt.date > limit]
+
+  if wrong.shape[0] > 0:
+    display(Markdown(f"Table with non-support time reported on the issue:"))
+    display(wrong)
 
 ```
 
 
-Check assignees if all persons reporting time are also assignees.
-Add hours ordered to the timeLog.qmd table!
+
+### Todo
+
+* Check assignees if all persons reporting time are also assignees. Need to fetch both "Assignee" and "All assingees", also "Data Steward"
+* Add option to get all projects that has staff from a team, e.g. a list of persons.
+
