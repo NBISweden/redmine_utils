@@ -532,7 +532,8 @@ class Redmine_server_api:
             
         return activity_report
     
-    def report_time_entries_by_issue(self, user_id, start_date, end_data):
+    def report_time_entries_by_issue(self, user_id, start_date, end_data, hours_ordered=True):
+      
         time_entries = self.fetch_time_entries_by_user_id(user_id, start_date, end_data)
         issue_report = {}
         missingIssue = False
@@ -545,6 +546,10 @@ class Redmine_server_api:
               issue_id = "{}_MissingIssue".format(project)
               missingIssue = True
             if issue_id not in issue_report:
+                issue = self.fetch_issue(issue_id)
+                tracker = get_field(issue, 'tracker')
+                name = get_field(issue, 'subject')
+      
                 if(missingIssue == False):
                   issue = self.fetch_issue(issue_id)
                   tracker = get_field(issue, 'tracker')
@@ -553,13 +558,65 @@ class Redmine_server_api:
                 else: 
                   tracker = "NA"
                   name = "NA"
-                  status = "NA"
-                issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Status' : status, 'Total time' : 0 }  # Initialize if not exist
+                  status = "NA"      
+                
+                if hours_ordered: # added option to also include ordered hours for timeLog.qmd. Check that it does not break other sripts. 
+                  ordered = get_field(issue, 'Hours ordered')
+                  issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Total time' : 0, 'Ordered time' : ordered }  # Initialize if not exist
+                else:
+                  issue_report[issue_id] = { 'Project' : project, 'Tracker' : tracker, 'Name' : name, 'Total time' : 0} 
+                   
             issue_report[issue_id]['Total time'] += hours
 
         return issue_report
     
+    def get_all_time_entries_for_issue(self, issue_id, extra_params=None):
+      """
+      Fetch ALL time entries for a specific issue, handling pagination automatically.
 
+      Args:
+          issue_id (int): The ID of the issue
+          extra_params (dict): Additional query parameters
+
+      Returns:
+          list: Complete list of all time entry dictionaries for the issue
+      """
+      all_time_entries = []
+      offset = 0
+      limit = 100  # Maximum allowed by Redmine API
+
+      params = {
+          "issue_id": issue_id,
+          "offset": offset,
+          "limit": limit
+      }  
+
+      if extra_params:
+          params.update(extra_params)
+
+      while True:
+          response = requests.get(
+              f"{self.baseurl}/time_entries.json",
+              headers=self.headers,
+              params=params
+          )
+          response.raise_for_status()
+          data = response.json()
+
+          # Add the current batch of time entries
+          time_entries = data.get("time_entries", [])
+          all_time_entries.extend(time_entries)
+
+          # Check if we've retrieved all entries
+          total_count = data.get("total_count", 0)
+          if len(all_time_entries) >= total_count:
+              break
+
+          # Move to the next page
+          offset += limit
+          params['offset'] = offset
+
+      return all_time_entries
 
 
     def update_issue_description(self, issue, new_description, suppress_mail=True):

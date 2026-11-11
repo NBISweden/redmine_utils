@@ -1,0 +1,387 @@
+---
+title: "Project coordinator report"
+author: "NBIS Support Manager group"
+date: today
+always_allow_html: true
+format: 
+  html:
+    self-contained: true
+    page-layout: full
+    fig-width: 10
+    fig-height: 6    
+    df-print: default
+execute:
+  freeze: false
+  echo: false
+  warning: false
+---
+
+
+
+```{python}
+#| label: params
+
+params_file = "coordinatorAdminParams.yaml"
+
+```
+
+```{python}
+#| label: setup
+
+import os, sys
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import yaml
+import pandas as pd
+from datetime import datetime, timedelta
+import seaborn as sns
+from IPython.display import display, Markdown
+
+import plotly.express as px
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import numpy as np
+import textwrap
+
+# get path to import the Redmine API tools
+lib_path = os.path.split(os.getcwd())[0] + "/lib"
+sys.path.append(lib_path) 
+from Redmine_apis import *
+
+# Read all params
+with open(params_file, 'r') as stream:
+    myparams = yaml.safe_load(stream)
+
+```
+
+
+## Introduction
+
+Provides an overview of all open project from a specific coordinator.  Specify in the file `coordinatorAdminParams.yaml` which coordinator you want to create the report for in field `user`, and also what types of projects to parse through in `projects`. 
+
+
+```{python}
+#| label: redmine
+#| echo: false
+#| eval: true
+
+user = myparams["users"][0]
+
+with open(myparams['config_file'], 'r') as config_file:
+    config = yaml.safe_load(config_file)
+
+# Open Redamine API
+redmine = Redmine_server_api(config)
+
+# translate name to user id. use the short-term support project. "National Bioinformatics Support", pid = 2
+name2id = redmine.create_user_name_to_id(2)
+if not user in name2id.keys():
+  print("The user ", user, " is not found in redmine, plese check spelling of the name")
+  stop()
+userID = name2id[user]
+
+# first get all projects from myparams['projects'] that are open and has the user as coordinator
+proj = redmine.get_all_projects()
+coordinator_issues = []
+for project in proj:
+  if project['name'] in myparams['projects']:
+    issues = redmine.get_all_project_issues(project['id'],status_id='open')
+    for issue in issues:
+      cID = get_custom_field(issue,"Coordinator")
+      if len(cID) > 0 and int(cID) == userID: 
+        coordinator_issues.append(issue)
+
+print("Fetched", len(coordinator_issues), "issues for", user)
+
+```
+
+
+For each project plot:
+
+* Logged total hourse, split per expert.
+* Logged time last year, grouped by month.
+* Logged time last month, per day.
+
+
+Also flag if any time is reported as anything except "Support" in the last month. 
+In addition, if no time was logged in the last year, pring the last date that anyting was logged.
+
+
+```{python}
+
+def plot_time_entries_comprehensive_interactive(time_entries, issue_id=None, issue_name=None, total_ordered_hours=None):
+    """
+    Create an interactive comprehensive visualization of time entries with three plots side-by-side.
+    Same individuals have the same colors across all plots.
+    Hover shows user name in plots 2 and 3.
+    """
+    # Convert to DataFrame
+    df = pd.DataFrame(time_entries)
+
+    if df.empty:
+        print("No time entries to plot.")
+        return
+
+    # Convert spent_on to datetime and extract user names
+    df['spent_on'] = pd.to_datetime(df['spent_on'])
+    df['user_name'] = df['user'].apply(lambda x: x.get('name', 'Unknown'))
+
+    # Calculate time periods
+    today = datetime.now().date()
+    one_year_ago = today - timedelta(days=365)
+    one_month_ago = today - timedelta(days=30)
+
+    # Filter data for different periods
+    all_time = df.copy()
+    last_year = df[df['spent_on'].dt.date >= one_year_ago]
+    last_month = df[df['spent_on'].dt.date >= one_month_ago]
+
+    # Calculate total hours spent
+    total_hours_spent = df['hours'].sum()
+
+    # Get all unique users across all time periods
+    all_users = df['user_name'].unique()
+    all_users.sort()  # Sort for consistent color assignment
+
+    # Create a color mapping for all users
+    color_palette = px.colors.qualitative.Plotly  # Use Plotly's qualitative color palette
+    color_map = {user: color_palette[i % len(color_palette)] for i, user in enumerate(all_users)}
+
+    # Create title with percentage if total_ordered_hours provided
+    if issue_name and total_ordered_hours:
+        percentage = (total_hours_spent / int(total_ordered_hours)) * 100
+        title_text = f"{issue_name} (Issue #{issue_id}) - {total_hours_spent:.1f}/{int(total_ordered_hours):.1f} hours ({percentage:.1f}%)"
+    elif issue_name:
+        title_text = f"{issue_name} (Issue #{issue_id}) - {total_hours_spent:.1f} hours spent"
+    elif issue_id:
+        title_text = f"Issue #{issue_id} - {total_hours_spent:.1f} hours spent"
+    else:
+        title_text = f"Time Entries Analysis - {total_hours_spent:.1f} hours spent"
+
+    wrapped = textwrap.wrap(title_text,120)
+    title_text = '<br>'.join(wrapped)
+
+    # Create subplot figure with 1 row and 3 columns
+    fig = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=("Total Time by User", "Last Year (Monthly)", "Last Month (Daily)"),
+        horizontal_spacing=0.08,
+        column_widths=[0.3, 0.35, 0.35]
+    )
+
+    # Plot 1: Total time by user (column 1)
+    add_total_time_plot(all_time, fig, 1, 1, color_map)
+
+    # Plot 2: Time during last year (stacked) (column 2)
+    if last_year.empty:
+      last_logged_time = df['spent_on'].dt.date.max()
+      last_logged_str = last_logged_time.strftime('%Y-%m-%d')
+      diff = (today - last_logged_time).days
+      years = diff // 365
+      months = round( (diff - years * 365) / 30.5)
+
+      time_past = today - df['spent_on'].dt.date[0]
+      add_no_data_message(fig, 1, 2, f"Last logged timepoint is {last_logged_str}",f"About {years:d} years and {months:d} months ago")
+    else:
+      add_stacked_time_plot(last_year, 'year_month', 'Month', fig, 1, 2, 'Last Year', color_map)
+
+    # Plot 3: Time during last month (stacked) (column 3)
+    add_stacked_time_plot(last_month, 'day', 'Day', fig, 1, 3, 'Last Month', color_map)
+
+    # Update layout - no legend needed since colors are consistent
+    fig.update_layout(
+        height=450,
+        width=1100,
+        barmode='stack',
+        title_text=title_text,
+        title_x=0.5,
+        title_y=0.95,
+        showlegend=False,
+        margin=dict(l=50, r=50, t=100, b=50),
+        hovermode='x unified'
+    )
+
+    # Customize hover labels for all traces
+    for trace in fig.data:
+        if hasattr(trace, 'meta') and trace.meta:
+            trace.hovertemplate = "%{y:.1f} hours<extra>%{meta[0]}</extra>"
+        else:
+            trace.hovertemplate = "%{y:.1f} hours<extra>%{x}</extra>"
+    fig.show()
+
+
+def add_no_data_message(fig, row, col, message1,message2):
+    """Add a 'No data available' message to a subplot."""
+    fig.add_annotation(
+        x=0.5, y=0.5,
+        xref=f"x{col}", yref=f"y{col}",
+        text=message1,
+        showarrow=False,
+        font=dict(size=14),
+        align="center"
+    )
+
+    fig.add_annotation(
+        x=0.5, y=0.25,
+        xref=f"x{col}", yref=f"y{col}",
+        text=message2,
+        showarrow=False,
+        font=dict(size=14),
+        align="center"
+    )
+
+    # Add an empty trace to ensure the subplot is created
+    fig.add_trace(
+        go.Scatter(x=[None], y=[None], mode='markers'),
+        row=row, col=col
+    )    
+
+    # Remove all axes, gridlines, and background
+    fig.update_xaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        visible=False,
+        row=row, col=col
+    )
+    fig.update_yaxes(
+        showticklabels=False,
+        showgrid=False,
+        zeroline=False,
+        visible=False,
+        row=row, col=col
+    )
+
+
+def add_total_time_plot(df, fig, row, col, color_map):
+    """Add total time by user plot to the figure."""
+    if df.empty:
+        return
+
+    # Group by user and sum hours
+    user_hours = df.groupby('user_name')['hours'].sum().reset_index()
+    user_hours = user_hours.sort_values('hours', ascending=False)
+
+    # Add bar plot with consistent colors
+    for _, row_data in user_hours.iterrows():
+        fig.add_trace(
+            go.Bar(
+                x=[row_data['user_name']],
+                y=[row_data['hours']],
+                text=[f"{row_data['hours']:.1f}"],
+                textposition='auto',
+                marker_color=color_map[row_data['user_name']],
+                showlegend=False,
+                hovertemplate="%{y:.1f} hours<extra>%{x}</extra>"
+            ),
+            row=row, col=col
+        )
+
+    # Add total hours to the title
+    total_hours = user_hours['hours'].sum()
+    fig.layout.annotations[col-1].update(text=f"Total Time by User<br>(Total: {total_hours:.1f} hours)")
+
+    # Update axis
+    fig.update_xaxes(title_text='User', row=row, col=col, tickangle=45)
+    fig.update_yaxes(title_text='Hours', row=row, col=col)
+
+def add_stacked_time_plot(df, group_col, xlabel, fig, row, col, title_prefix, color_map):
+    """Add stacked time plot to the figure with user names in hover."""
+    if df.empty:
+        return
+
+    # Create period column
+    if group_col == 'year_month':
+        df['period'] = df['spent_on'].dt.to_period('M')
+        df['period_str'] = df['spent_on'].dt.strftime('%Y-%m')
+    elif group_col == 'day':
+        df['period'] = df['spent_on'].dt.date
+        df['period_str'] = df['spent_on'].dt.strftime('%Y-%m-%d')
+
+    # Pivot the data for stacked bar plot
+    pivot_df = df.pivot_table(index='period_str', columns='user_name',
+                             values='hours', aggfunc='sum', fill_value=0)
+
+    # Sort by period
+    pivot_df = pivot_df.sort_index()
+
+    # Add stacked bars with consistent colors and user names in hover
+    for user in pivot_df.columns:
+        # Get the data for this user
+        user_data = pivot_df[user].values
+
+        # Create text labels for each bar segment
+        text_labels = [f"{val:.1f}" if val > 0 else "" for val in user_data]
+
+        fig.add_trace(
+            go.Bar(
+                x=pivot_df.index,
+                y=user_data,
+                name=user,
+                text=text_labels,
+                textposition='inside',
+                marker_color=color_map[user],
+                showlegend=False,
+                meta=[user],  # Store user name for hover
+                hovertemplate="%{y:.1f} hours<extra>%{meta[0]}</extra>"
+            ),
+            row=row, col=col
+        )
+
+    # Add total hours to the title
+    total_hours = pivot_df.sum().sum()
+    fig.layout.annotations[col-1].update(text=f"{title_prefix}<br>(Total: {total_hours:.1f} hours)")
+
+    # Update axis
+    fig.update_xaxes(title_text=xlabel, row=row, col=col, tickangle=45)
+    fig.update_yaxes(title_text='Hours', row=row, col=col)
+```
+
+
+
+
+
+
+
+```{python}
+issue = coordinator_issues[0]
+issueID = issue['id']
+issueName = issue['subject']
+hoursOrdered = dict([[x['name'], x['value']] for x in issue['custom_fields']])['Hours ordered']
+data = redmine.get_all_time_entries_for_issue(issue['id'])  
+#plot_time_entries_comprehensive_interactive(data, issue_id=issueID, issue_name=issueName, total_ordered_hours=hoursOrdered)
+
+df = pd.DataFrame(data)
+df['activity_name'] = [x['name'] for x in df['activity']]
+
+
+
+```
+
+
+
+```{python}
+#| label: plot
+#| echo: false
+#| eval: true
+
+from datetime import datetime, timedelta
+
+for issue in coordinator_issues:
+  issueID = issue['id']
+  issueName = issue['subject']
+  hoursOrdered = dict([[x['name'], x['value']] for x in issue['custom_fields']])['Hours ordered']
+  data = redmine.get_all_time_entries_for_issue(issue['id'])  
+
+  # first check if any time entries that are not "Support"
+  df = pd.DataFrame(data)
+  df['activity_name'] = [x['name'] for x in df['activity']]
+
+  plot_time_entries_comprehensive_interactive(data, issue_id=issueID, issue_name=issueName, total_ordered_hours=hoursOrdered)
+
+
+```
+
+
+Check assignees if all persons reporting time are also assignees.
+Add hours ordered to the timeLog.qmd table!
