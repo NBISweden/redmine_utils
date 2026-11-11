@@ -7,7 +7,7 @@ format:
   confluence-html:
     self-contained: true
     page-layout: full
-params: # Change to fit your query
+params: 
   params_file: timeLogParams.yaml
 execute:
   freeze: false

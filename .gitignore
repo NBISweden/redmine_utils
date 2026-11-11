@@ -19,3 +19,4 @@ pixi.lock
 
 /.quarto/
 **/*.quarto_ipynb
+.positai
